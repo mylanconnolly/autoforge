@@ -40,12 +40,16 @@ defmodule Autoforge.MixProject do
 
       skills: [
         location: ".claude/skills",
-        deps: [:fluxon, :req],
 
         build: [
           "ash-framework": [
             description: "Use this skill working with Ash Framework or any of its extensions. Always consult this when making any domain changes, features or fixes.",
             usage_rules: [:ash, ~r/^ash_/]
+          ],
+
+          fluxon: [
+            description: "Use this skill working with Fluxon or components in general.",
+            usage_rules: [:fluxon]
           ],
 
           "phoenix-framework": [
