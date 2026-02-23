@@ -136,6 +136,7 @@ defmodule Autoforge.Accounts.User do
 
   relationships do
     has_many :llm_provider_keys, Autoforge.Accounts.LlmProviderKey
+    has_many :bots, Autoforge.Ai.Bot
   end
 
   identities do

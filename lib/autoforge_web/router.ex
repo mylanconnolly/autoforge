@@ -38,6 +38,9 @@ defmodule AutoforgeWeb.Router do
       # on_mount {AutoforgeWeb.LiveUserAuth, :live_no_user}
       live "/dashboard", DashboardLive
       live "/profile", ProfileLive
+      live "/bots", BotsLive
+      live "/bots/new", BotFormLive, :new
+      live "/bots/:id/edit", BotFormLive, :edit
     end
   end
 

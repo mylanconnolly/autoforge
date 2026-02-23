@@ -53,6 +53,12 @@ defmodule AutoforgeWeb.Layouts do
             href={~p"/dashboard"}
             active={@active_page == :dashboard}
           />
+          <.sidebar_nav_item
+            icon="hero-cpu-chip"
+            label="Bots"
+            href={~p"/bots"}
+            active={@active_page == :bots}
+          />
         </nav>
 
         <div class="flex flex-col items-center gap-3">
