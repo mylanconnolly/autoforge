@@ -1,0 +1,22 @@
+# Nix
+.nix-mix/
+.nix-hex/
+.direnv/
+result
+
+# Elixir
+_build/
+deps/
+.fetch
+*.ez
+*.beam
+erl_crash.dump
+priv/static/assets
+
+# Node (Phoenix assets)
+node_modules/
+
+# IDE
+.elixir_ls/
+.lexical/
+.env

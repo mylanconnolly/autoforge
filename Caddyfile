@@ -1,0 +1,5 @@
+auto-forge.test {
+	tls internal
+
+	reverse_proxy host.docker.internal:4000
+}
