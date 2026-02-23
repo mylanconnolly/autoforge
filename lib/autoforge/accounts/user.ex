@@ -101,6 +101,10 @@ defmodule Autoforge.Accounts.User do
       authorize_if always()
     end
 
+    policy action_type(:read) do
+      authorize_if actor_present()
+    end
+
     policy action(:update_profile) do
       authorize_if expr(id == ^actor(:id))
     end

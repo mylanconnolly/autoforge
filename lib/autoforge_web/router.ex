@@ -41,6 +41,9 @@ defmodule AutoforgeWeb.Router do
       live "/bots", BotsLive
       live "/bots/new", BotFormLive, :new
       live "/bots/:id/edit", BotFormLive, :edit
+      live "/conversations", ConversationsLive
+      live "/conversations/new", ConversationFormLive
+      live "/conversations/:id", ConversationLive
     end
   end
 

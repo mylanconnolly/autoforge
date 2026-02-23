@@ -26,13 +26,29 @@ import { hooks as colocatedHooks } from "phoenix-colocated/autoforge";
 import topbar from "../vendor/topbar";
 import { Hooks as FluxonHooks, DOM as FluxonDOM } from "fluxon";
 
+const ChatScroll = {
+  mounted() {
+    this.el.scrollTop = this.el.scrollHeight;
+    this.observer = new MutationObserver(() => {
+      this.el.scrollTop = this.el.scrollHeight;
+    });
+    this.observer.observe(this.el, { childList: true, subtree: true });
+  },
+  updated() {
+    this.el.scrollTop = this.el.scrollHeight;
+  },
+  destroyed() {
+    if (this.observer) this.observer.disconnect();
+  },
+};
+
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")
   .getAttribute("content");
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken },
-  hooks: { ...colocatedHooks, ...FluxonHooks },
+  hooks: { ...colocatedHooks, ...FluxonHooks, ChatScroll },
   dom: {
     onBeforeElUpdated(from, to) {
       FluxonDOM.onBeforeElUpdated(from, to);

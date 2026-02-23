@@ -54,6 +54,12 @@ defmodule AutoforgeWeb.Layouts do
             active={@active_page == :dashboard}
           />
           <.sidebar_nav_item
+            icon="hero-chat-bubble-left-right"
+            label="Conversations"
+            href={~p"/conversations"}
+            active={@active_page == :conversations}
+          />
+          <.sidebar_nav_item
             icon="hero-cpu-chip"
             label="Bots"
             href={~p"/bots"}

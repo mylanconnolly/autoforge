@@ -132,6 +132,9 @@ defmodule AutoforgeWeb.BotsLive do
                         <.icon name="hero-ellipsis-horizontal" class="w-5 h-5" />
                       </button>
                     </:toggle>
+                    <.dropdown_link navigate={~p"/conversations/new?bot_id=#{bot.id}"}>
+                      <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 mr-2" /> Chat
+                    </.dropdown_link>
                     <.dropdown_link navigate={~p"/bots/#{bot.id}/edit"}>
                       <.icon name="hero-pencil-square" class="w-4 h-4 mr-2" /> Edit
                     </.dropdown_link>
