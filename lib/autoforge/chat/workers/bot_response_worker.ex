@@ -14,7 +14,6 @@ defmodule Autoforge.Chat.Workers.BotResponseWorker do
 
   use Oban.Worker, queue: :ai, max_attempts: 3
 
-  alias Autoforge.Accounts.LlmProviderKey
   alias Autoforge.Ai.Bot
   alias Autoforge.Chat.{Conversation, Message}
 
@@ -30,8 +29,8 @@ defmodule Autoforge.Chat.Workers.BotResponseWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"bot_id" => bot_id, "conversation_id" => conversation_id}}) do
     with {:ok, bot} <- load_bot(bot_id),
-         {:ok, conversation} <- load_conversation(conversation_id),
-         {:ok, api_key} <- fetch_api_key(bot) do
+         {:ok, conversation} <- load_conversation(conversation_id) do
+      api_key = bot.llm_provider_key.value
       broadcast_thinking(conversation_id, bot_id, true)
 
       try do
@@ -43,7 +42,7 @@ defmodule Autoforge.Chat.Workers.BotResponseWorker do
   end
 
   defp load_bot(bot_id) do
-    case Ash.get(Bot, bot_id, load: [:user], authorize?: false) do
+    case Ash.get(Bot, bot_id, load: [:user, :llm_provider_key], authorize?: false) do
       {:ok, nil} -> {:cancel, "bot not found: #{bot_id}"}
       {:ok, bot} -> {:ok, bot}
       {:error, reason} -> {:cancel, "failed to load bot: #{inspect(reason)}"}
@@ -60,22 +59,6 @@ defmodule Autoforge.Chat.Workers.BotResponseWorker do
     case conversation do
       nil -> {:cancel, "conversation not found: #{conversation_id}"}
       conv -> {:ok, conv}
-    end
-  end
-
-  defp fetch_api_key(bot) do
-    with {:ok, {provider_id, _model_id}} <- LLMDB.parse(bot.model) do
-      key =
-        LlmProviderKey
-        |> Ash.Query.filter(user_id == ^bot.user_id and provider == ^provider_id)
-        |> Ash.read_one!(authorize?: false)
-
-      case key do
-        nil -> {:cancel, "no API key for provider #{provider_id}"}
-        key -> {:ok, key.value}
-      end
-    else
-      {:error, reason} -> {:cancel, "invalid model spec: #{inspect(reason)}"}
     end
   end
 

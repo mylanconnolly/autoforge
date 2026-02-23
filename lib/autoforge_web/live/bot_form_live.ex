@@ -11,7 +11,9 @@ defmodule AutoforgeWeb.BotFormLive do
   @impl true
   def mount(params, _session, socket) do
     user = socket.assigns.current_user
-    model_options = build_model_options(user)
+    provider_keys = load_provider_keys(user)
+    key_options = build_key_options(provider_keys)
+    model_options = build_model_options(provider_keys)
 
     case params do
       %{"id" => id} ->
@@ -30,6 +32,7 @@ defmodule AutoforgeWeb.BotFormLive do
            assign(socket,
              page_title: "Edit Bot",
              form: form,
+             key_options: key_options,
              model_options: model_options,
              editing?: true
            )}
@@ -50,6 +53,7 @@ defmodule AutoforgeWeb.BotFormLive do
          assign(socket,
            page_title: "New Bot",
            form: form,
+           key_options: key_options,
            model_options: model_options,
            editing?: false
          )}
@@ -81,26 +85,38 @@ defmodule AutoforgeWeb.BotFormLive do
     end
   end
 
-  defp build_model_options(user) do
-    provider_keys =
-      LlmProviderKey
-      |> Ash.Query.filter(user_id == ^user.id)
-      |> Ash.read!(actor: user)
+  defp load_provider_keys(user) do
+    LlmProviderKey
+    |> Ash.read!(actor: user)
+  end
 
+  defp build_key_options(provider_keys) do
+    provider_keys
+    |> Enum.sort_by(fn key -> {key.provider, key.name} end)
+    |> Enum.map(fn key ->
+      provider_name =
+        case LLMDB.provider(key.provider) do
+          {:ok, p} -> p.name
+          _ -> to_string(key.provider)
+        end
+
+      {"#{provider_name} — #{key.name}", key.id}
+    end)
+  end
+
+  defp build_model_options(provider_keys) do
     provider_keys
     |> Enum.sort_by(& &1.provider)
-    |> Enum.flat_map(fn key ->
-      provider_id = key.provider
-
+    |> Enum.map(& &1.provider)
+    |> Enum.uniq()
+    |> Enum.flat_map(fn provider_id ->
       provider_name =
         case LLMDB.provider(provider_id) do
           {:ok, p} -> p.name
           _ -> to_string(provider_id)
         end
 
-      models = LLMDB.models(provider_id)
-
-      models
+      LLMDB.models(provider_id)
       |> Enum.filter(fn m -> m.capabilities && m.capabilities[:chat] end)
       |> Enum.sort_by(fn m -> m.name || m.id end)
       |> Enum.map(fn m ->
@@ -145,6 +161,15 @@ defmodule AutoforgeWeb.BotFormLive do
                 label="Description"
                 placeholder="A helpful assistant for..."
                 rows={3}
+              />
+
+              <.select
+                field={@form[:llm_provider_key_id]}
+                label="Provider Key"
+                placeholder="Select a provider key..."
+                options={@key_options}
+                searchable
+                search_input_placeholder="Search keys..."
               />
 
               <.select

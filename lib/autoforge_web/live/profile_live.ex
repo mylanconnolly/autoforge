@@ -94,13 +94,6 @@ defmodule AutoforgeWeb.ProfileLive do
             </.form>
           </div>
         </div>
-        <div class="mt-6">
-          <.live_component
-            module={AutoforgeWeb.LlmProviderKeysComponent}
-            id="llm-keys"
-            current_user={@current_user}
-          />
-        </div>
       </div>
     </Layouts.app>
     """

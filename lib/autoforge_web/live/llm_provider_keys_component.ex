@@ -3,8 +3,6 @@ defmodule AutoforgeWeb.LlmProviderKeysComponent do
 
   alias Autoforge.Accounts.LlmProviderKey
 
-  require Ash.Query
-
   @impl true
   def update(assigns, socket) do
     socket = assign(socket, :current_user, assigns.current_user)
@@ -81,16 +79,10 @@ defmodule AutoforgeWeb.LlmProviderKeysComponent do
   defp load_keys(socket) do
     user = socket.assigns.current_user
 
-    keys =
-      LlmProviderKey
-      |> Ash.Query.filter(user_id == ^user.id)
-      |> Ash.read!(actor: user)
-
-    used_provider_ids = Enum.map(keys, & &1.provider)
+    keys = Ash.read!(LlmProviderKey, actor: user)
 
     available_providers =
       LLMDB.providers()
-      |> Enum.reject(&(&1.id in used_provider_ids))
       |> Enum.sort_by(& &1.name)
       |> Enum.map(&{&1.name, &1.id})
 
@@ -112,7 +104,7 @@ defmodule AutoforgeWeb.LlmProviderKeysComponent do
         <div>
           <h2 class="text-xl font-semibold tracking-tight">LLM Provider Keys</h2>
           <p class="mt-1 text-sm text-base-content/70">
-            Manage your API keys for LLM providers.
+            Manage API keys for LLM providers.
           </p>
         </div>
         <.button

@@ -14,12 +14,30 @@ defmodule Autoforge.Ai.Bot do
     defaults [:read, :destroy]
 
     create :create do
-      accept [:name, :description, :system_prompt, :model, :temperature, :max_tokens]
+      accept [
+        :name,
+        :description,
+        :system_prompt,
+        :model,
+        :temperature,
+        :max_tokens,
+        :llm_provider_key_id
+      ]
+
       change relate_actor(:user)
     end
 
     update :update do
-      accept [:name, :description, :system_prompt, :model, :temperature, :max_tokens]
+      accept [
+        :name,
+        :description,
+        :system_prompt,
+        :model,
+        :temperature,
+        :max_tokens,
+        :llm_provider_key_id
+      ]
+
       require_atomic? false
     end
   end
@@ -90,6 +108,11 @@ defmodule Autoforge.Ai.Bot do
     belongs_to :user, Autoforge.Accounts.User do
       allow_nil? false
       attribute_writable? false
+    end
+
+    belongs_to :llm_provider_key, Autoforge.Accounts.LlmProviderKey do
+      allow_nil? false
+      attribute_writable? true
     end
   end
 

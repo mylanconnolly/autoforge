@@ -22,7 +22,6 @@ defmodule Autoforge.Accounts.LlmProviderKey do
 
     create :create do
       accept [:name, :provider, :value]
-      change relate_actor(:user)
     end
 
     update :update do
@@ -35,12 +34,8 @@ defmodule Autoforge.Accounts.LlmProviderKey do
       authorize_if always()
     end
 
-    policy action_type(:create) do
+    policy action_type([:create, :read, :update, :destroy]) do
       authorize_if actor_present()
-    end
-
-    policy action_type([:read, :update, :destroy]) do
-      authorize_if expr(user_id == ^actor(:id))
     end
   end
 
@@ -74,14 +69,7 @@ defmodule Autoforge.Accounts.LlmProviderKey do
     update_timestamp :updated_at
   end
 
-  relationships do
-    belongs_to :user, Autoforge.Accounts.User do
-      allow_nil? false
-      attribute_writable? false
-    end
-  end
-
   identities do
-    identity :unique_provider_per_user, [:user_id, :provider]
+    identity :unique_name, [:name]
   end
 end

@@ -71,6 +71,12 @@ defmodule AutoforgeWeb.Layouts do
             href={~p"/users"}
             active={@active_page == :users}
           />
+          <.sidebar_nav_item
+            icon="hero-cog-6-tooth"
+            label="Settings"
+            href={~p"/settings"}
+            active={@active_page == :settings}
+          />
         </nav>
 
         <div class="flex flex-col items-center gap-3">

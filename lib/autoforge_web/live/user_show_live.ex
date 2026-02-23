@@ -13,7 +13,7 @@ defmodule AutoforgeWeb.UserShowLive do
 
     case User
          |> Ash.Query.filter(id == ^id)
-         |> Ash.Query.load([:bots, :llm_provider_keys])
+         |> Ash.Query.load([:bots])
          |> Ash.read_one(actor: current_user) do
       {:ok, nil} ->
         {:ok,
@@ -111,7 +111,7 @@ defmodule AutoforgeWeb.UserShowLive do
           </div>
         </div>
 
-        <div class="card bg-base-200 shadow-sm mb-6">
+        <div class="card bg-base-200 shadow-sm">
           <div class="card-body">
             <div class="flex items-center gap-2 mb-4">
               <h2 class="text-lg font-semibold">Bots</h2>
@@ -124,25 +124,6 @@ defmodule AutoforgeWeb.UserShowLive do
                 <li :for={bot <- @user.bots} class="text-sm">
                   <.icon name="hero-cpu-chip" class="w-4 h-4 inline-block mr-1 text-base-content/50" />
                   {bot.name}
-                </li>
-              </ul>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="card bg-base-200 shadow-sm">
-          <div class="card-body">
-            <div class="flex items-center gap-2 mb-4">
-              <h2 class="text-lg font-semibold">Provider Keys</h2>
-              <span class="badge badge-sm">{length(@user.llm_provider_keys)}</span>
-            </div>
-            <%= if @user.llm_provider_keys == [] do %>
-              <p class="text-sm text-base-content/50">No provider keys configured yet.</p>
-            <% else %>
-              <ul class="space-y-1">
-                <li :for={key <- @user.llm_provider_keys} class="text-sm">
-                  <.icon name="hero-key" class="w-4 h-4 inline-block mr-1 text-base-content/50" />
-                  {key.provider}
                 </li>
               </ul>
             <% end %>
