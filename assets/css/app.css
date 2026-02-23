@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap');
+
 /* See the Tailwind configuration guide for advanced usage
    https://tailwindcss.com/docs/configuration */
 
@@ -9,6 +11,34 @@
 @source "../../lib/autoforge_web";
 @source "../../deps/fluxon/**/*.*ex";
 @import "../../deps/fluxon/priv/static/theme";
+
+@theme {
+  --font-sans: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --text-base: 0.9375rem;
+  --text-sm: 0.8125rem;
+  --text-xs: 0.6875rem;
+}
+
+:root {
+  --primary: light-dark(var(--color-stone-900), var(--color-stone-50));
+  --foreground: light-dark(var(--color-stone-700), var(--color-stone-200));
+  --foreground-soft: light-dark(var(--color-stone-600), var(--color-stone-300));
+  --foreground-softer: light-dark(var(--color-stone-500), var(--color-stone-400));
+  --foreground-softest: light-dark(var(--color-stone-400), var(--color-stone-500));
+  --foreground-primary: light-dark(var(--color-white), var(--color-stone-800));
+  --background-base: light-dark(var(--color-white), var(--color-stone-900));
+  --background-accent: light-dark(var(--color-stone-100), var(--color-stone-700));
+  --surface: light-dark(var(--color-white), var(--color-stone-800));
+  --overlay: light-dark(var(--color-white), var(--color-stone-800));
+  --background-input: light-dark(var(--color-white), var(--color-stone-900));
+  --border-base: light-dark(var(--color-stone-200), var(--color-stone-700));
+  --focus: light-dark(var(--color-orange-400), var(--color-orange-500));
+  --focus-danger: light-dark(var(--color-red-400), var(--color-red-400));
+}
+
+[data-theme="light"] { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
 
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
    The heroicons installation itself is managed by your mix.exs */
@@ -30,26 +60,26 @@
   default: false;
   prefersdark: true;
   color-scheme: "dark";
-  --color-base-100: oklch(30.33% 0.016 252.42);
-  --color-base-200: oklch(25.26% 0.014 253.1);
-  --color-base-300: oklch(20.15% 0.012 254.09);
-  --color-base-content: oklch(97.807% 0.029 256.847);
-  --color-primary: oklch(58% 0.233 277.117);
-  --color-primary-content: oklch(96% 0.018 272.314);
-  --color-secondary: oklch(58% 0.233 277.117);
-  --color-secondary-content: oklch(96% 0.018 272.314);
-  --color-accent: oklch(60% 0.25 292.717);
-  --color-accent-content: oklch(96% 0.016 293.756);
-  --color-neutral: oklch(37% 0.044 257.287);
-  --color-neutral-content: oklch(98% 0.003 247.858);
-  --color-info: oklch(58% 0.158 241.966);
-  --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(60% 0.118 184.704);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
+  --color-base-100: oklch(30% 0.012 60);
+  --color-base-200: oklch(25% 0.010 60);
+  --color-base-300: oklch(20% 0.008 60);
+  --color-base-content: oklch(95% 0.015 60);
+  --color-primary: oklch(72% 0.17 55);
+  --color-primary-content: oklch(20% 0.02 55);
+  --color-secondary: oklch(55% 0.04 55);
+  --color-secondary-content: oklch(95% 0.01 55);
+  --color-accent: oklch(45% 0.06 55);
+  --color-accent-content: oklch(95% 0.01 55);
+  --color-neutral: oklch(40% 0.015 55);
+  --color-neutral-content: oklch(95% 0.005 55);
+  --color-info: oklch(62% 0.17 240);
+  --color-info-content: oklch(97% 0.013 236);
+  --color-success: oklch(65% 0.14 155);
+  --color-success-content: oklch(98% 0.014 155);
+  --color-warning: oklch(72% 0.17 55);
+  --color-warning-content: oklch(20% 0.02 55);
+  --color-error: oklch(62% 0.24 17);
+  --color-error-content: oklch(96% 0.015 12);
   --radius-selector: 0.25rem;
   --radius-field: 0.25rem;
   --radius-box: 0.5rem;
@@ -65,26 +95,26 @@
   default: true;
   prefersdark: false;
   color-scheme: "light";
-  --color-base-100: oklch(98% 0 0);
-  --color-base-200: oklch(96% 0.001 286.375);
-  --color-base-300: oklch(92% 0.004 286.32);
-  --color-base-content: oklch(21% 0.006 285.885);
-  --color-primary: oklch(70% 0.213 47.604);
-  --color-primary-content: oklch(98% 0.016 73.684);
-  --color-secondary: oklch(55% 0.027 264.364);
-  --color-secondary-content: oklch(98% 0.002 247.839);
-  --color-accent: oklch(0% 0 0);
-  --color-accent-content: oklch(100% 0 0);
-  --color-neutral: oklch(44% 0.017 285.786);
+  --color-base-100: oklch(98% 0.005 70);
+  --color-base-200: oklch(96% 0.008 70);
+  --color-base-300: oklch(92% 0.012 70);
+  --color-base-content: oklch(21% 0.010 55);
+  --color-primary: oklch(70% 0.17 55);
+  --color-primary-content: oklch(98% 0.016 55);
+  --color-secondary: oklch(55% 0.04 55);
+  --color-secondary-content: oklch(98% 0.005 55);
+  --color-accent: oklch(40% 0.06 55);
+  --color-accent-content: oklch(98% 0.005 55);
+  --color-neutral: oklch(44% 0.015 55);
   --color-neutral-content: oklch(98% 0 0);
-  --color-info: oklch(62% 0.214 259.815);
-  --color-info-content: oklch(97% 0.014 254.604);
-  --color-success: oklch(70% 0.14 182.503);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
+  --color-info: oklch(62% 0.19 240);
+  --color-info-content: oklch(97% 0.014 240);
+  --color-success: oklch(65% 0.14 155);
+  --color-success-content: oklch(98% 0.014 155);
+  --color-warning: oklch(70% 0.17 55);
+  --color-warning-content: oklch(98% 0.02 55);
+  --color-error: oklch(58% 0.253 17);
+  --color-error-content: oklch(96% 0.015 12);
   --radius-selector: 0.25rem;
   --radius-field: 0.25rem;
   --radius-box: 0.5rem;
