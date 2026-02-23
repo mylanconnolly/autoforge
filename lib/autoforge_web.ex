@@ -89,6 +89,9 @@ defmodule AutoforgeWeb do
       # Core UI components
       import AutoforgeWeb.CoreComponents
 
+      # CLDR formatting helpers
+      import AutoforgeWeb.Formatters
+
       # Common modules used in templates
       alias Phoenix.LiveView.JS
       alias AutoforgeWeb.Layouts

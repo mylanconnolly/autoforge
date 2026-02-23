@@ -26,10 +26,6 @@ defmodule AutoforgeWeb.ConversationsLive do
     |> List.first()
   end
 
-  defp format_date(datetime) do
-    Calendar.strftime(datetime, "%b %d, %Y")
-  end
-
   defp truncate(nil), do: ""
 
   defp truncate(text) when byte_size(text) > 80 do

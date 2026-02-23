@@ -115,10 +115,6 @@ defmodule AutoforgeWeb.ConversationLive do
     end
   end
 
-  defp format_time(datetime) do
-    Calendar.strftime(datetime, "%I:%M %p")
-  end
-
   defp get_bot_info(bot_id, bot_info) do
     Map.get(bot_info, bot_id, %{name: "Bot", model_name: nil, description: nil})
   end

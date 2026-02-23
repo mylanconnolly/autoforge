@@ -104,10 +104,6 @@ defmodule AutoforgeWeb.LlmProviderKeysComponent do
     end
   end
 
-  defp format_date(datetime) do
-    Calendar.strftime(datetime, "%b %d, %Y")
-  end
-
   @impl true
   def render(assigns) do
     ~H"""
