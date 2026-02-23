@@ -16,7 +16,11 @@ defmodule Autoforge.Accounts.UserGroupMembership do
   end
 
   actions do
-    defaults [:read, :destroy, create: :*, update: :*]
+    defaults [:read, :destroy, update: :*]
+
+    create :create do
+      accept [:user_group_id, :user_id]
+    end
   end
 
   policies do

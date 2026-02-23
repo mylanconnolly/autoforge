@@ -1,7 +1,7 @@
 defmodule AutoforgeWeb.UserShowLive do
   use AutoforgeWeb, :live_view
 
-  alias Autoforge.Accounts.User
+  alias Autoforge.Accounts.{User, UserGroup, UserGroupMembership}
 
   require Ash.Query
 
@@ -11,10 +11,7 @@ defmodule AutoforgeWeb.UserShowLive do
   def mount(%{"id" => id}, _session, socket) do
     current_user = socket.assigns.current_user
 
-    case User
-         |> Ash.Query.filter(id == ^id)
-         |> Ash.Query.load([:bots, :user_groups])
-         |> Ash.read_one(actor: current_user) do
+    case load_user(id, current_user) do
       {:ok, nil} ->
         {:ok,
          socket
@@ -22,10 +19,13 @@ defmodule AutoforgeWeb.UserShowLive do
          |> push_navigate(to: ~p"/users")}
 
       {:ok, user} ->
+        available_groups = load_available_groups(user, current_user)
+
         {:ok,
          assign(socket,
            page_title: user.name || to_string(user.email),
-           user: user
+           user: user,
+           available_groups: available_groups
          )}
 
       {:error, _} ->
@@ -51,6 +51,74 @@ defmodule AutoforgeWeb.UserShowLive do
        |> put_flash(:info, "User deleted successfully.")
        |> push_navigate(to: ~p"/users")}
     end
+  end
+
+  def handle_event("add_group", %{"group_id" => group_id}, socket) do
+    current_user = socket.assigns.current_user
+    user = socket.assigns.user
+
+    UserGroupMembership
+    |> AshPhoenix.Form.for_create(:create, actor: current_user)
+    |> AshPhoenix.Form.submit(params: %{"user_group_id" => group_id, "user_id" => user.id})
+    |> case do
+      {:ok, _} ->
+        {:noreply, reload_user(socket)}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to add group.")}
+    end
+  end
+
+  def handle_event("remove_group", %{"group_id" => group_id}, socket) do
+    current_user = socket.assigns.current_user
+    user = socket.assigns.user
+
+    membership =
+      UserGroupMembership
+      |> Ash.Query.filter(user_group_id == ^group_id and user_id == ^user.id)
+      |> Ash.read_one!(actor: current_user)
+
+    if membership do
+      Ash.destroy!(membership, actor: current_user)
+    end
+
+    {:noreply, reload_user(socket)}
+  end
+
+  defp reload_user(socket) do
+    current_user = socket.assigns.current_user
+    user_id = socket.assigns.user.id
+
+    case load_user(user_id, current_user) do
+      {:ok, user} when not is_nil(user) ->
+        available_groups = load_available_groups(user, current_user)
+
+        assign(socket,
+          user: user,
+          available_groups: available_groups
+        )
+
+      _ ->
+        socket
+        |> put_flash(:error, "User not found.")
+        |> push_navigate(to: ~p"/users")
+    end
+  end
+
+  defp load_user(id, actor) do
+    User
+    |> Ash.Query.filter(id == ^id)
+    |> Ash.Query.load([:bots, :user_groups])
+    |> Ash.read_one(actor: actor)
+  end
+
+  defp load_available_groups(user, actor) do
+    member_group_ids = Enum.map(user.user_groups, & &1.id)
+
+    UserGroup
+    |> Ash.Query.sort(name: :asc)
+    |> Ash.read!(actor: actor)
+    |> Enum.reject(&(&1.id in member_group_ids))
   end
 
   @impl true
@@ -136,20 +204,60 @@ defmodule AutoforgeWeb.UserShowLive do
               <h2 class="text-lg font-semibold">Groups</h2>
               <span class="badge badge-sm">{length(@user.user_groups)}</span>
             </div>
+
+            <%= if @available_groups != [] do %>
+              <.form
+                for={%{}}
+                phx-submit="add_group"
+                class="flex items-end gap-3 mb-4"
+              >
+                <div class="flex-1">
+                  <label class="text-sm font-medium mb-1 block">Add to group</label>
+                  <select name="group_id" class="select select-bordered w-full">
+                    <option :for={group <- @available_groups} value={group.id}>
+                      {group.name}
+                    </option>
+                  </select>
+                </div>
+                <.button type="submit" variant="solid" color="primary" size="sm">
+                  <.icon name="hero-plus" class="w-4 h-4 mr-1" /> Add
+                </.button>
+              </.form>
+            <% end %>
+
             <%= if @user.user_groups == [] do %>
               <p class="text-sm text-base-content/50">Not a member of any groups.</p>
             <% else %>
-              <ul class="space-y-1">
-                <li :for={group <- @user.user_groups} class="text-sm">
-                  <.icon
-                    name="hero-user-group"
-                    class="w-4 h-4 inline-block mr-1 text-base-content/50"
-                  />
-                  <.link navigate={~p"/user-groups/#{group.id}"} class="hover:underline">
-                    {group.name}
-                  </.link>
-                </li>
-              </ul>
+              <.table>
+                <.table_head>
+                  <:col class="w-full">Group</:col>
+                  <:col></:col>
+                </.table_head>
+                <.table_body>
+                  <.table_row :for={group <- @user.user_groups}>
+                    <:cell class="w-full">
+                      <.link
+                        navigate={~p"/user-groups/#{group.id}"}
+                        class="font-medium hover:underline"
+                      >
+                        {group.name}
+                      </.link>
+                    </:cell>
+                    <:cell>
+                      <.button
+                        variant="ghost"
+                        size="sm"
+                        color="danger"
+                        phx-click="remove_group"
+                        phx-value-group_id={group.id}
+                        data-confirm="Remove this user from the group?"
+                      >
+                        <.icon name="hero-x-mark" class="w-4 h-4" />
+                      </.button>
+                    </:cell>
+                  </.table_row>
+                </.table_body>
+              </.table>
             <% end %>
           </div>
         </div>

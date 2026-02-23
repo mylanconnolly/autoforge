@@ -202,13 +202,13 @@ defmodule AutoforgeWeb.UserGroupShowLive do
             <% else %>
               <.table>
                 <.table_head>
-                  <:col>Name</:col>
+                  <:col class="w-full">Name</:col>
                   <:col>Email</:col>
                   <:col></:col>
                 </.table_head>
                 <.table_body>
                   <.table_row :for={member <- @group.members}>
-                    <:cell>
+                    <:cell class="w-full">
                       <.link navigate={~p"/users/#{member.id}"} class="font-medium hover:underline">
                         {member.name || "—"}
                       </.link>
