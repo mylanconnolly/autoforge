@@ -45,6 +45,11 @@ const ChatScroll = {
 const ChatInput = {
   mounted() {
     this.el.focus();
+    this.resize = () => {
+      this.el.style.height = "auto";
+      this.el.style.height = this.el.scrollHeight + "px";
+    };
+    this.el.addEventListener("input", this.resize);
     this.el.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -53,11 +58,13 @@ const ChatInput = {
             new Event("submit", { bubbles: true, cancelable: true })
           );
           this.el.value = "";
+          this.resize();
         }
       }
     });
     this.handleEvent("clear_input", () => {
       this.el.value = "";
+      this.resize();
       this.el.focus();
     });
   },
