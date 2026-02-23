@@ -3,7 +3,8 @@ defmodule Autoforge.Chat.Message do
     otp_app: :autoforge,
     domain: Autoforge.Chat,
     data_layer: AshPostgres.DataLayer,
-    authorizers: [Ash.Policy.Authorizer]
+    authorizers: [Ash.Policy.Authorizer],
+    notifiers: [Ash.Notifier.PubSub]
 
   postgres do
     table "messages"
@@ -23,6 +24,16 @@ defmodule Autoforge.Chat.Message do
           changeset
         end
       end
+
+      change fn changeset, _context ->
+        Ash.Changeset.after_action(changeset, fn _changeset, message ->
+          if message.role == :user do
+            Autoforge.Chat.BotDispatcher.dispatch(message)
+          end
+
+          {:ok, message}
+        end)
+      end
     end
   end
 
@@ -38,6 +49,12 @@ defmodule Autoforge.Chat.Message do
     policy action_type(:read) do
       authorize_if expr(exists(conversation.participants, id == ^actor(:id)))
     end
+  end
+
+  pub_sub do
+    module AutoforgeWeb.Endpoint
+    prefix "conversation"
+    publish :create, [:conversation_id]
   end
 
   attributes do
