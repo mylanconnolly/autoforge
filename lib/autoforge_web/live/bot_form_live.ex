@@ -116,14 +116,14 @@ defmodule AutoforgeWeb.BotFormLive do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user} active_page={:bots}>
       <div class="max-w-2xl mx-auto">
-        <div class="mb-8">
+        <div class="mb-6">
           <.link
             navigate={~p"/bots"}
             class="text-sm text-base-content/60 hover:text-base-content transition-colors"
           >
             <.icon name="hero-arrow-left" class="w-4 h-4 inline-block mr-1" /> Back to Bots
           </.link>
-          <h1 class="text-3xl font-bold tracking-tight mt-2">
+          <h1 class="text-2xl font-bold tracking-tight mt-2">
             {if @editing?, do: "Edit Bot", else: "New Bot"}
           </h1>
           <p class="mt-2 text-base-content/70">
@@ -133,7 +133,7 @@ defmodule AutoforgeWeb.BotFormLive do
 
         <div class="card bg-base-200 shadow-sm">
           <div class="card-body">
-            <.form for={@form} phx-change="validate" phx-submit="save" class="space-y-6">
+            <.form for={@form} phx-change="validate" phx-submit="save" class="space-y-4">
               <.input
                 field={@form[:name]}
                 label="Name"

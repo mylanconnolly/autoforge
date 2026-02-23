@@ -112,7 +112,7 @@ defmodule AutoforgeWeb.LlmProviderKeysComponent do
   def render(assigns) do
     ~H"""
     <div>
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-4">
         <div>
           <h2 class="text-xl font-semibold tracking-tight">LLM Provider Keys</h2>
           <p class="mt-1 text-sm text-base-content/70">
@@ -132,9 +132,9 @@ defmodule AutoforgeWeb.LlmProviderKeysComponent do
       </div>
 
       <%= if @form do %>
-        <div class="card bg-base-100 border border-base-300 mb-6">
+        <div class="card bg-base-100 border border-base-300 mb-4">
           <div class="card-body">
-            <h3 class="text-lg font-medium mb-4">
+            <h3 class="text-lg font-medium mb-3">
               {if @editing_key, do: "Edit Key", else: "Add New Key"}
             </h3>
             <.form
@@ -188,7 +188,7 @@ defmodule AutoforgeWeb.LlmProviderKeysComponent do
 
       <%= if @keys == [] and @form == nil do %>
         <div class="card bg-base-200">
-          <div class="card-body items-center text-center py-12">
+          <div class="card-body items-center text-center py-10">
             <.icon name="hero-key" class="w-10 h-10 text-base-content/30 mb-2" />
             <p class="text-base-content/70">No API keys configured yet.</p>
             <p class="text-sm text-base-content/50">

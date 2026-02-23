@@ -13,8 +13,8 @@ defmodule AutoforgeWeb.DashboardLive do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user} active_page={:dashboard}>
       <div class="max-w-4xl mx-auto">
-        <div class="mb-8">
-          <h1 class="text-3xl font-bold tracking-tight">
+        <div class="mb-6">
+          <h1 class="text-2xl font-bold tracking-tight">
             Welcome back, {@current_user.name || @current_user.email}
           </h1>
           <p class="mt-2 text-base-content/70">

@@ -65,8 +65,8 @@ defmodule AutoforgeWeb.ProfileLive do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user} active_page={:profile}>
       <div class="max-w-2xl mx-auto">
-        <div class="mb-8">
-          <h1 class="text-3xl font-bold tracking-tight">Profile Settings</h1>
+        <div class="mb-6">
+          <h1 class="text-2xl font-bold tracking-tight">Profile Settings</h1>
           <p class="mt-2 text-base-content/70">
             Manage your display name and timezone preferences.
           </p>
@@ -74,7 +74,7 @@ defmodule AutoforgeWeb.ProfileLive do
 
         <div class="card bg-base-200 shadow-sm">
           <div class="card-body">
-            <.form for={@form} phx-change="validate" phx-submit="save" class="space-y-6">
+            <.form for={@form} phx-change="validate" phx-submit="save" class="space-y-4">
               <.input field={@form[:name]} label="Display Name" placeholder="Enter your name" />
 
               <.autocomplete
@@ -94,7 +94,7 @@ defmodule AutoforgeWeb.ProfileLive do
             </.form>
           </div>
         </div>
-        <div class="mt-8">
+        <div class="mt-6">
           <.live_component
             module={AutoforgeWeb.LlmProviderKeysComponent}
             id="llm-keys"

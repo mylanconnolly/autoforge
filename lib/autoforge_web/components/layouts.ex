@@ -46,7 +46,7 @@ defmodule AutoforgeWeb.Layouts do
           <.icon name="hero-bolt" class="size-7" />
         </.link>
 
-        <nav class="mt-8 flex flex-col items-center gap-2 flex-1">
+        <nav class="mt-6 flex flex-col items-center gap-2 flex-1">
           <.sidebar_nav_item
             icon="hero-squares-2x2"
             label="Dashboard"
@@ -96,7 +96,7 @@ defmodule AutoforgeWeb.Layouts do
       </aside>
 
       <main class="flex-1 overflow-y-auto">
-        <div class="px-4 py-8 sm:px-6 lg:px-8">
+        <div class="px-4 py-6 sm:px-6 lg:px-8">
           {render_slot(@inner_block)}
         </div>
 

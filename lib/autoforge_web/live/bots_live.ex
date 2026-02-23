@@ -69,9 +69,9 @@ defmodule AutoforgeWeb.BotsLive do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user} active_page={:bots}>
       <div class="max-w-4xl mx-auto">
-        <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center justify-between mb-6">
           <div>
-            <h1 class="text-3xl font-bold tracking-tight">Bots</h1>
+            <h1 class="text-2xl font-bold tracking-tight">Bots</h1>
             <p class="mt-2 text-base-content/70">
               Create and manage your AI bots.
             </p>
@@ -85,8 +85,8 @@ defmodule AutoforgeWeb.BotsLive do
 
         <%= if @bots == [] do %>
           <div class="card bg-base-200">
-            <div class="card-body items-center text-center py-16">
-              <.icon name="hero-cpu-chip" class="w-12 h-12 text-base-content/30 mb-3" />
+            <div class="card-body items-center text-center py-12">
+              <.icon name="hero-cpu-chip" class="w-10 h-10 text-base-content/30 mb-2" />
               <p class="text-lg font-medium text-base-content/70">No bots yet</p>
               <p class="text-sm text-base-content/50 mt-1">
                 Create your first bot to get started.
