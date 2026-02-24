@@ -45,12 +45,52 @@ const ChatScroll = {
 const ChatInput = {
   mounted() {
     this.el.focus();
+    this.bots = JSON.parse(this.el.dataset.bots || "[]");
+    this.mentionActive = false;
+    this.mentionStart = -1;
+    this.mentionQuery = "";
+    this.filteredBots = [];
+    this.selectedIndex = 0;
+    this.dropdown = null;
+
     this.resize = () => {
       this.el.style.height = "auto";
       this.el.style.height = this.el.scrollHeight + "px";
     };
-    this.el.addEventListener("input", this.resize);
+
+    this.createDropdown();
+
+    this.el.addEventListener("input", (e) => {
+      this.resize();
+      this.handleMentionInput();
+    });
+
     this.el.addEventListener("keydown", (e) => {
+      if (this.mentionActive && this.filteredBots.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          this.selectedIndex = (this.selectedIndex + 1) % this.filteredBots.length;
+          this.renderDropdown();
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          this.selectedIndex = (this.selectedIndex - 1 + this.filteredBots.length) % this.filteredBots.length;
+          this.renderDropdown();
+          return;
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          e.preventDefault();
+          this.selectBot(this.filteredBots[this.selectedIndex]);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          this.hideMentionDropdown();
+          return;
+        }
+      }
+
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         if (this.el.value.trim() !== "") {
@@ -62,11 +102,125 @@ const ChatInput = {
         }
       }
     });
+
+    this.outsideClickHandler = (e) => {
+      if (this.dropdown && !this.dropdown.contains(e.target) && e.target !== this.el) {
+        this.hideMentionDropdown();
+      }
+    };
+    document.addEventListener("mousedown", this.outsideClickHandler);
+
     this.handleEvent("clear_input", () => {
       this.el.value = "";
       this.resize();
       this.el.focus();
+      this.hideMentionDropdown();
     });
+  },
+
+  updated() {
+    this.bots = JSON.parse(this.el.dataset.bots || "[]");
+  },
+
+  destroyed() {
+    document.removeEventListener("mousedown", this.outsideClickHandler);
+    if (this.dropdown && this.dropdown.parentNode) {
+      this.dropdown.parentNode.removeChild(this.dropdown);
+    }
+  },
+
+  createDropdown() {
+    this.dropdown = document.createElement("div");
+    this.dropdown.className =
+      "absolute bottom-full left-0 mb-1 w-64 bg-base-200 border border-base-300 rounded-lg shadow-lg overflow-hidden z-50 hidden";
+    document.getElementById("mention-dropdown-container").appendChild(this.dropdown);
+  },
+
+  handleMentionInput() {
+    const value = this.el.value;
+    const cursor = this.el.selectionStart;
+    const textBeforeCursor = value.substring(0, cursor);
+    const match = textBeforeCursor.match(/(^|[\s])@(\w*)$/);
+
+    if (match && this.bots.length > 0) {
+      this.mentionActive = true;
+      this.mentionStart = cursor - match[2].length - 1;
+      this.mentionQuery = match[2].toLowerCase();
+      this.filterAndShowBots();
+    } else {
+      this.hideMentionDropdown();
+    }
+  },
+
+  filterAndShowBots() {
+    this.filteredBots = this.bots.filter((bot) =>
+      bot.name.toLowerCase().includes(this.mentionQuery)
+    );
+
+    if (this.filteredBots.length === 0) {
+      this.hideMentionDropdown();
+      return;
+    }
+
+    this.selectedIndex = Math.min(this.selectedIndex, this.filteredBots.length - 1);
+    this.renderDropdown();
+    this.dropdown.classList.remove("hidden");
+  },
+
+  renderDropdown() {
+    this.dropdown.innerHTML = "";
+    this.filteredBots.forEach((bot, index) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = this.itemClass(index === this.selectedIndex);
+      btn.textContent = "@" + bot.name;
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        this.selectBot(bot);
+      });
+      btn.addEventListener("mouseenter", () => {
+        this.selectedIndex = index;
+        this.updateSelection();
+      });
+      this.dropdown.appendChild(btn);
+    });
+  },
+
+  updateSelection() {
+    const items = this.dropdown.children;
+    for (let i = 0; i < items.length; i++) {
+      items[i].className = this.itemClass(i === this.selectedIndex);
+    }
+  },
+
+  itemClass(selected) {
+    return (
+      "w-full text-left px-3 py-2 text-sm transition-colors " +
+      (selected
+        ? "bg-primary/15 text-base-content"
+        : "text-base-content/80 hover:bg-base-300")
+    );
+  },
+
+  selectBot(bot) {
+    const before = this.el.value.substring(0, this.mentionStart);
+    const after = this.el.value.substring(this.el.selectionStart);
+    const insertion = "@" + bot.name + " ";
+    this.el.value = before + insertion + after;
+    const newCursor = before.length + insertion.length;
+    this.el.setSelectionRange(newCursor, newCursor);
+    this.hideMentionDropdown();
+    this.el.focus();
+  },
+
+  hideMentionDropdown() {
+    this.mentionActive = false;
+    this.mentionQuery = "";
+    this.filteredBots = [];
+    this.selectedIndex = 0;
+    if (this.dropdown) {
+      this.dropdown.classList.add("hidden");
+    }
   },
 };
 

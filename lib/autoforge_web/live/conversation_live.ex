@@ -326,13 +326,15 @@ defmodule AutoforgeWeb.ConversationLive do
           >
             Mention a bot: {Enum.map_join(@conversation.bots, ", ", &"@#{&1.name}")}
           </p>
-          <form phx-submit="send" class="flex items-end gap-2">
+          <form phx-submit="send" class="relative flex items-end gap-2">
+            <div id="mention-dropdown-container" phx-update="ignore" class="contents"></div>
             <textarea
               id="chat-input"
               name="body"
               placeholder="Type a message..."
               rows="1"
               phx-hook="ChatInput"
+              data-bots={Jason.encode!(Enum.map(@conversation.bots, &%{id: &1.id, name: &1.name}))}
               class="flex-1 min-h-9 max-h-32 resize-none bg-input text-foreground border border-input rounded-base shadow-base px-3 py-1.5 text-sm outline-hidden placeholder:text-foreground-softest focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus transition-[box-shadow] duration-100"
             >{@message_body}</textarea>
             <.button type="submit" variant="solid" color="primary" class="shrink-0 mb-px">
