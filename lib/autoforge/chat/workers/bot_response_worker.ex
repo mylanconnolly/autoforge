@@ -14,6 +14,7 @@ defmodule Autoforge.Chat.Workers.BotResponseWorker do
 
   use Oban.Worker, queue: :ai, max_attempts: 3
 
+  alias Autoforge.Accounts.UserGroupMembership
   alias Autoforge.Ai.{Bot, ToolResolver}
   alias Autoforge.Chat.{Conversation, Message, ToolInvocation}
 
@@ -75,11 +76,13 @@ defmodule Autoforge.Chat.Workers.BotResponseWorker do
 
     participant_ids = Enum.map(conversation.participants, & &1.id)
     tools = ToolResolver.resolve(bot, participant_ids)
+    tools = inject_delegate_context(tools, bot, conversation, participant_ids)
 
     base_opts =
       [api_key: api_key, system_prompt: system_prompt]
       |> maybe_put(:temperature, bot.temperature && Decimal.to_float(bot.temperature))
       |> maybe_put(:max_tokens, bot.max_tokens)
+      |> maybe_put_anthropic_caching(bot.model)
 
     case run_tool_loop(bot.model, truncated, tools, base_opts, 0, []) do
       {:ok, response_text, invocations} ->
@@ -300,6 +303,111 @@ defmodule Autoforge.Chat.Workers.BotResponseWorker do
 
   defp estimate_message_tokens(_), do: 0
 
+  # ── Delegation ──────────────────────────────────────────────────────────────
+
+  defp inject_delegate_context(tools, calling_bot, conversation, participant_ids) do
+    Enum.map(tools, fn
+      %{name: "delegate_task"} = tool ->
+        %{tool | callback: build_delegate_callback(calling_bot, conversation, participant_ids)}
+
+      tool ->
+        tool
+    end)
+  end
+
+  defp build_delegate_callback(calling_bot, conversation, participant_ids) do
+    fn %{bot_name: bot_name, task: task} ->
+      run_delegation(bot_name, task, calling_bot, conversation, participant_ids)
+    end
+  end
+
+  defp run_delegation(bot_name, task, calling_bot, conversation, participant_ids) do
+    accessible_bots = accessible_bots_for_participants(participant_ids)
+
+    target_bot =
+      Enum.find(accessible_bots, fn b ->
+        String.downcase(b.name) == String.downcase(bot_name)
+      end)
+
+    cond do
+      is_nil(target_bot) ->
+        available = Enum.map_join(accessible_bots, ", ", & &1.name)
+        {:error, "No bot named '#{bot_name}' found. Available bots: #{available}"}
+
+      target_bot.id == calling_bot.id ->
+        {:error, "Cannot delegate to yourself."}
+
+      true ->
+        do_delegation(target_bot, task, calling_bot, conversation, participant_ids)
+    end
+  end
+
+  defp accessible_bots_for_participants(participant_ids) do
+    user_group_ids =
+      UserGroupMembership
+      |> Ash.Query.filter(user_id in ^participant_ids)
+      |> Ash.read!(authorize?: false)
+      |> Enum.map(& &1.user_group_id)
+      |> Enum.uniq()
+
+    Bot
+    |> Ash.Query.filter(exists(user_groups, id in ^user_group_ids))
+    |> Ash.Query.sort(name: :asc)
+    |> Ash.read!(authorize?: false)
+  end
+
+  defp do_delegation(target_bot, task, calling_bot, conversation, participant_ids) do
+    case load_bot(target_bot.id) do
+      {:ok, target} ->
+        # Reload conversation for fresh messages
+        {:ok, fresh_conv} = load_conversation(conversation.id)
+
+        messages =
+          fresh_conv.messages
+          |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
+
+        multi_participant? = multi_participant?(fresh_conv)
+        system_prompt = build_system_prompt(target, fresh_conv, multi_participant?)
+        llm_messages = build_messages(messages, target, multi_participant?)
+
+        # Append the delegation instruction
+        delegation_msg = user("[Task from #{calling_bot.name}]: #{task}")
+        llm_messages = llm_messages ++ [delegation_msg]
+
+        truncated = truncate_messages(llm_messages, system_prompt, target.model)
+
+        # Resolve target bot's tools, excluding delegate_task to prevent recursion
+        tools =
+          ToolResolver.resolve(target, participant_ids)
+          |> Enum.reject(&(&1.name == "delegate_task"))
+
+        api_key = target.llm_provider_key.value
+
+        base_opts =
+          [api_key: api_key, system_prompt: system_prompt]
+          |> maybe_put(:temperature, target.temperature && Decimal.to_float(target.temperature))
+          |> maybe_put(:max_tokens, target.max_tokens)
+          |> maybe_put_anthropic_caching(target.model)
+
+        broadcast_thinking(conversation.id, target.id, true)
+
+        try do
+          case run_tool_loop(target.model, truncated, tools, base_opts, 0, []) do
+            {:ok, response_text, _invocations} ->
+              {:ok, response_text}
+
+            {:error, reason} ->
+              {:error, "Delegation to #{target.name} failed: #{inspect(reason)}"}
+          end
+        after
+          broadcast_thinking(conversation.id, target.id, false)
+        end
+
+      {:cancel, reason} ->
+        {:error, "Could not load bot #{target_bot.name}: #{reason}"}
+    end
+  end
+
   defp broadcast_thinking(conversation_id, bot_id, thinking?) do
     Phoenix.PubSub.broadcast(
       Autoforge.PubSub,
@@ -310,4 +418,12 @@ defmodule Autoforge.Chat.Workers.BotResponseWorker do
 
   defp maybe_put(opts, _key, nil), do: opts
   defp maybe_put(opts, key, value), do: Keyword.put(opts, key, value)
+
+  defp maybe_put_anthropic_caching(opts, model) do
+    if String.starts_with?(model, "anthropic:") do
+      Keyword.merge(opts, anthropic_prompt_cache: true, anthropic_cache_messages: -2)
+    else
+      opts
+    end
+  end
 end

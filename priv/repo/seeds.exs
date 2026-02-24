@@ -50,18 +50,25 @@ end
 alias Autoforge.Accounts.LlmProviderKey
 alias Autoforge.Ai.{Bot, BotTool, BotUserGroup, Tool, UserGroupTool}
 
-cerebras_key =
+provider_keys =
   LlmProviderKey
-  |> Ash.Query.filter(provider == :cerebras)
-  |> Ash.read_one!(authorize?: false)
+  |> Ash.Query.sort(provider: :asc)
+  |> Ash.read!(authorize?: false)
+  |> Map.new(&{&1.provider, &1})
 
-if cerebras_key do
+anthropic_key = Map.get(provider_keys, :anthropic)
+cerebras_key = Map.get(provider_keys, :cerebras)
+
+if anthropic_key || cerebras_key do
   # Look up tools
   get_url =
     Tool |> Ash.Query.filter(name == "get_url") |> Ash.read_one!(authorize?: false)
 
   get_time =
     Tool |> Ash.Query.filter(name == "get_time") |> Ash.read_one!(authorize?: false)
+
+  delegate_task =
+    Tool |> Ash.Query.filter(name == "delegate_task") |> Ash.read_one!(authorize?: false)
 
   # Look up user groups
   admins =
@@ -73,18 +80,24 @@ if cerebras_key do
   testers =
     UserGroup |> Ash.Query.filter(name == "Testers") |> Ash.read_one!(authorize?: false)
 
-  coder_model = "cerebras:qwen-3-coder-480b"
-  instruct_model = "cerebras:qwen-3-235b-a22b-instruct-2507"
+  # Anthropic models (deep reasoning, code review, architecture)
+  opus_model = "anthropic:claude-opus-4-6"
+  sonnet_model = "anthropic:claude-sonnet-4-6"
+
+  # Cerebras models (fast domain knowledge recall)
+  cerebras_coder = "cerebras:qwen-3-coder-480b"
+  cerebras_instruct = "cerebras:qwen-3-235b-a22b-instruct-2507"
 
   bot_definitions = [
     %{
       name: "Elixir Architect",
       description:
         "Expert in OTP design, supervision trees, and distributed Elixir architecture.",
-      model: instruct_model,
+      model: opus_model,
+      key: anthropic_key,
       temperature: 0.6,
       max_tokens: 4096,
-      tools: [get_url],
+      tools: [get_url, delegate_task],
       groups: [admins, devs],
       system_prompt: """
       You are the Elixir Architect, a senior systems designer specializing in Elixir and OTP.
@@ -103,10 +116,11 @@ if cerebras_key do
     %{
       name: "Ash Sage",
       description: "Deep knowledge of the Ash Framework DSL, resources, actions, and policies.",
-      model: instruct_model,
+      model: cerebras_instruct,
+      key: cerebras_key,
       temperature: 0.5,
       max_tokens: 4096,
-      tools: [get_url],
+      tools: [get_url, delegate_task],
       groups: [admins, devs],
       system_prompt: """
       You are the Ash Sage, an expert in the Ash Framework for Elixir.
@@ -128,10 +142,11 @@ if cerebras_key do
       name: "Phoenix Guide",
       description:
         "Phoenix 1.8 expert covering LiveView, layouts, components, and the asset pipeline.",
-      model: instruct_model,
+      model: cerebras_instruct,
+      key: cerebras_key,
       temperature: 0.5,
       max_tokens: 4096,
-      tools: [get_url],
+      tools: [get_url, delegate_task],
       groups: [admins, devs],
       system_prompt: """
       You are the Phoenix Guide, an expert in the Phoenix Framework v1.8.
@@ -154,10 +169,11 @@ if cerebras_key do
       name: "Code Crafter",
       description:
         "Writes production-quality Elixir, Ash, and Phoenix code with full documentation.",
-      model: coder_model,
+      model: sonnet_model,
+      key: anthropic_key,
       temperature: 0.3,
       max_tokens: 8192,
-      tools: [get_url, get_time],
+      tools: [get_url, get_time, delegate_task],
       groups: [admins, devs],
       system_prompt: """
       You are the Code Crafter, a production code generator for Elixir, Ash, and Phoenix projects.
@@ -179,10 +195,11 @@ if cerebras_key do
       name: "Code Reviewer",
       description:
         "Reviews Elixir code across correctness, idioms, OTP, performance, and security.",
-      model: instruct_model,
+      model: opus_model,
+      key: anthropic_key,
       temperature: 0.4,
       max_tokens: 4096,
-      tools: [get_url],
+      tools: [get_url, delegate_task],
       groups: [admins, devs],
       system_prompt: """
       You are the Code Reviewer, an expert at reviewing Elixir, Ash, and Phoenix code.
@@ -210,10 +227,11 @@ if cerebras_key do
       name: "Test Engineer",
       description:
         "Designs and writes ExUnit tests for Ash resources, LiveView, and property-based testing.",
-      model: coder_model,
+      model: sonnet_model,
+      key: anthropic_key,
       temperature: 0.3,
       max_tokens: 8192,
-      tools: [get_time],
+      tools: [get_time, delegate_task],
       groups: [admins, devs, testers],
       system_prompt: """
       You are the Test Engineer, an expert in testing Elixir, Ash, and Phoenix applications.
@@ -240,7 +258,7 @@ if cerebras_key do
     }
   ]
 
-  for bot_def <- bot_definitions do
+  for bot_def <- bot_definitions, bot_def.key != nil do
     bot =
       case Bot |> Ash.Query.filter(name == ^bot_def.name) |> Ash.read_one!(authorize?: false) do
         nil ->
@@ -255,7 +273,7 @@ if cerebras_key do
                 model: bot_def.model,
                 temperature: bot_def.temperature,
                 max_tokens: bot_def.max_tokens,
-                llm_provider_key_id: cerebras_key.id
+                llm_provider_key_id: bot_def.key.id
               },
               authorize?: false
             )
@@ -308,9 +326,9 @@ if cerebras_key do
   # ── UserGroup-Tool assignments ──────────────────────────────────────────────
 
   user_group_tool_matrix = [
-    {admins, [get_url, get_time]},
-    {devs, [get_url, get_time]},
-    {testers, [get_time]}
+    {admins, [get_url, get_time, delegate_task]},
+    {devs, [get_url, get_time, delegate_task]},
+    {testers, [get_time, delegate_task]}
   ]
 
   for {group, tools} <- user_group_tool_matrix, group != nil do
@@ -332,5 +350,5 @@ if cerebras_key do
     end
   end
 else
-  IO.puts("No Cerebras provider key found, skipping bot seeding.")
+  IO.puts("No provider keys found, skipping bot seeding.")
 end

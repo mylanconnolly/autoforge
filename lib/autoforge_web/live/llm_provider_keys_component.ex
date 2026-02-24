@@ -3,6 +3,8 @@ defmodule AutoforgeWeb.LlmProviderKeysComponent do
 
   alias Autoforge.Accounts.LlmProviderKey
 
+  require Ash.Query
+
   @impl true
   def update(assigns, socket) do
     socket = assign(socket, :current_user, assigns.current_user)
@@ -79,7 +81,10 @@ defmodule AutoforgeWeb.LlmProviderKeysComponent do
   defp load_keys(socket) do
     user = socket.assigns.current_user
 
-    keys = Ash.read!(LlmProviderKey, actor: user)
+    keys =
+      LlmProviderKey
+      |> Ash.Query.sort(provider: :asc)
+      |> Ash.read!(actor: user)
 
     available_providers =
       LLMDB.providers()

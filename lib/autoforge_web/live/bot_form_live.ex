@@ -87,6 +87,7 @@ defmodule AutoforgeWeb.BotFormLive do
 
   defp load_provider_keys(user) do
     LlmProviderKey
+    |> Ash.Query.sort(provider: :asc)
     |> Ash.read!(actor: user)
   end
 

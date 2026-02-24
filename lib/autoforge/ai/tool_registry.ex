@@ -49,6 +49,33 @@ defmodule Autoforge.Ai.ToolRegistry do
           callback: fn %{url: url} ->
             fetch_url(url, @max_meta_redirects)
           end
+        ),
+      "delegate_task" =>
+        ReqLLM.Tool.new!(
+          name: "delegate_task",
+          description: """
+          Delegate a task or question to another bot you have access to. \
+          The bot will process the request (with full tool access) and return its response. \
+          Use this whenever another bot's expertise would help — whether you need code written, \
+          a question answered, an architecture reviewed, a test designed, or any other task \
+          that falls within another bot's specialty. \
+          When a user asks you to consult, ask, or involve another bot by name, use this tool.\
+          """,
+          parameter_schema: [
+            bot_name: [
+              type: :string,
+              required: true,
+              doc: "Name of the bot to delegate to"
+            ],
+            task: [
+              type: :string,
+              required: true,
+              doc: "Clear description of what the bot should do"
+            ]
+          ],
+          callback: fn _args ->
+            {:error, "delegate_task requires conversation context — this is a bug"}
+          end
         )
     }
   end
