@@ -20,19 +20,43 @@ defmodule Autoforge.Projects.Sandbox do
     variables = TemplateRenderer.build_variables(project)
     network_name = "autoforge-#{project.id}"
     db_alias = "db-#{project.id}"
+    base_image = project.project_template.base_image
 
     with {:ok, project} <- transition(project, :provision),
-         :ok <- Docker.pull_image("postgres:18-alpine"),
-         :ok <- Docker.pull_image(project.project_template.base_image),
-         {:ok, network_id} <- Docker.create_network(network_name),
-         {:ok, db_container_id} <- create_db_container(project, network_id, db_alias),
+         :ok <-
+           log_and_run(project, "Pulling image postgres:18-alpine...", fn ->
+             Docker.pull_image("postgres:18-alpine")
+           end),
+         :ok <-
+           log_and_run(project, "Pulling image #{base_image}...", fn ->
+             Docker.pull_image(base_image)
+           end),
+         {:ok, network_id} <-
+           log_and_run(project, "Creating network...", fn ->
+             Docker.create_network(network_name)
+           end),
+         {:ok, db_container_id} <-
+           log_and_run(project, "Starting database...", fn ->
+             create_db_container(project, network_id, db_alias)
+           end),
          :ok <- Docker.start_container(db_container_id),
-         :ok <- wait_for_postgres(db_container_id),
+         :ok <-
+           log_and_run(project, "Waiting for database...", fn ->
+             wait_for_postgres(db_container_id)
+           end),
+         _ <- broadcast_provision_log(project, "Database ready"),
          :ok <- create_test_database(db_container_id, project),
-         {:ok, app_container_id} <- create_app_container(project, network_id),
+         {:ok, app_container_id} <-
+           log_and_run(project, "Creating application container...", fn ->
+             create_app_container(project, network_id)
+           end),
          :ok <- Docker.start_container(app_container_id),
-         :ok <- upload_template_files(app_container_id, project, variables),
+         :ok <-
+           log_and_run(project, "Uploading template files...", fn ->
+             upload_template_files(app_container_id, project, variables)
+           end),
          :ok <- run_bootstrap_script(app_container_id, project, variables),
+         _ <- broadcast_provision_log(project, "Provisioning complete"),
          {:ok, project} <-
            Ash.update(
              project,
@@ -48,6 +72,7 @@ defmodule Autoforge.Projects.Sandbox do
     else
       {:error, reason} ->
         Logger.error("Failed to provision project #{project.id}: #{inspect(reason)}")
+        broadcast_provision_log(project, "Error: #{inspect(reason)}")
 
         Ash.update(project, %{error_message: inspect(reason)},
           action: :mark_error,
@@ -128,6 +153,19 @@ defmodule Autoforge.Projects.Sandbox do
   end
 
   # Private helpers
+
+  defp broadcast_provision_log(project, message) do
+    Phoenix.PubSub.broadcast(
+      Autoforge.PubSub,
+      "project:provision_log:#{project.id}",
+      {:provision_log, message}
+    )
+  end
+
+  defp log_and_run(project, message, fun) do
+    broadcast_provision_log(project, message)
+    fun.()
+  end
 
   defp transition(project, action) do
     Ash.update(project, %{}, action: action, authorize?: false)
@@ -238,12 +276,20 @@ defmodule Autoforge.Projects.Sandbox do
         :ok
 
       {:ok, script} ->
-        case Docker.exec_run(container_id, ["/bin/sh", "-c", script], working_dir: "/app") do
-          {:ok, %{exit_code: 0}} ->
+        broadcast_provision_log(project, "Running bootstrap script...")
+
+        callback = fn chunk ->
+          broadcast_provision_log(project, {:output, chunk})
+        end
+
+        case Docker.exec_stream(container_id, ["/bin/sh", "-c", script], callback,
+               working_dir: "/app"
+             ) do
+          {:ok, 0} ->
             :ok
 
-          {:ok, %{exit_code: code, output: output}} ->
-            {:error, "Bootstrap failed (exit #{code}): #{output}"}
+          {:ok, code} ->
+            {:error, "Bootstrap failed (exit #{code})"}
 
           {:error, reason} ->
             {:error, reason}

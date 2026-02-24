@@ -27,12 +27,18 @@ defmodule Autoforge.Projects.Workers.ProvisionWorker do
         :ok
 
       %{state: :provisioning} ->
-        Logger.warning("ProvisionWorker: project #{project_id} stuck in provisioning, cleaning up and retrying")
+        Logger.warning(
+          "ProvisionWorker: project #{project_id} stuck in provisioning, cleaning up and retrying"
+        )
+
         cleanup_partial(project)
         reprovision(project)
 
       %{state: :error} ->
-        Logger.info("ProvisionWorker: project #{project_id} in error state, cleaning up and retrying")
+        Logger.info(
+          "ProvisionWorker: project #{project_id} in error state, cleaning up and retrying"
+        )
+
         cleanup_partial(project)
         reprovision(project)
 

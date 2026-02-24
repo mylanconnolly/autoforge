@@ -81,4 +81,48 @@ const TerminalHook = {
   },
 };
 
+const ProvisionLogHook = {
+  mounted() {
+    this.term = new Terminal({
+      cursorBlink: false,
+      disableStdin: true,
+      fontSize: 14,
+      fontFamily: "'IBM Plex Mono', monospace",
+      scrollback: 10000,
+      theme: {
+        background: "#1c1917",
+        foreground: "#e7e5e4",
+        cursor: "#1c1917",
+        selectionBackground: "#44403c",
+      },
+    });
+
+    this.fitAddon = new FitAddon();
+    this.term.loadAddon(this.fitAddon);
+    this.term.loadAddon(new WebLinksAddon());
+
+    this.term.open(this.el);
+    this.fitAddon.fit();
+
+    this.resizeObserver = new ResizeObserver(() => {
+      this.fitAddon.fit();
+    });
+    this.resizeObserver.observe(this.el);
+
+    this.handleEvent("provision_log", ({ type, data }) => {
+      if (type === "step") {
+        this.term.writeln(`\x1b[33m${data}\x1b[0m`);
+      } else {
+        this.term.write(data);
+      }
+    });
+  },
+
+  destroyed() {
+    if (this.term) this.term.dispose();
+    if (this.resizeObserver) this.resizeObserver.disconnect();
+  },
+};
+
 export default TerminalHook;
+export { ProvisionLogHook };

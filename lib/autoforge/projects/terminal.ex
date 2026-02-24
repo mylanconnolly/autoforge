@@ -114,7 +114,9 @@ defmodule Autoforge.Projects.Terminal do
       "AttachStderr" => true,
       "Tty" => true,
       "Cmd" => ["/bin/bash", "-l"],
-      "Env" => ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin"]
+      "Env" => [
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin"
+      ]
     }
 
     socket_path = docker_socket_path()

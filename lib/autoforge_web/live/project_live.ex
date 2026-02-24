@@ -20,6 +20,7 @@ defmodule AutoforgeWeb.ProjectLive do
     if project do
       if connected?(socket) do
         Phoenix.PubSub.subscribe(Autoforge.PubSub, "project:updated:#{project.id}")
+        Phoenix.PubSub.subscribe(Autoforge.PubSub, "project:provision_log:#{project.id}")
       end
 
       token = Phoenix.Token.sign(AutoforgeWeb.Endpoint, "user_socket", user.id)
@@ -28,7 +29,8 @@ defmodule AutoforgeWeb.ProjectLive do
        assign(socket,
          page_title: project.name,
          project: project,
-         user_token: token
+         user_token: token,
+         provision_log_started: false
        )}
     else
       {:ok,
@@ -50,6 +52,20 @@ defmodule AutoforgeWeb.ProjectLive do
       |> Ash.read_one!(authorize?: false)
 
     {:noreply, assign(socket, project: project)}
+  end
+
+  def handle_info({:provision_log, {:output, chunk}}, socket) do
+    {:noreply,
+     socket
+     |> assign(provision_log_started: true)
+     |> push_event("provision_log", %{type: "output", data: chunk})}
+  end
+
+  def handle_info({:provision_log, message}, socket) do
+    {:noreply,
+     socket
+     |> assign(provision_log_started: true)
+     |> push_event("provision_log", %{type: "step", data: message})}
   end
 
   @impl true
@@ -176,6 +192,31 @@ defmodule AutoforgeWeb.ProjectLive do
               </div>
             </div>
           </div>
+        </div>
+
+        <%!-- Provision Log Panel --%>
+        <div
+          :if={@provision_log_started and @project.state in [:creating, :provisioning, :error]}
+          class="card bg-[#1c1917] shadow-sm mb-6 border border-base-300/30"
+        >
+          <div class="px-4 py-2 border-b border-stone-800 flex items-center gap-2">
+            <span
+              :if={@project.state in [:creating, :provisioning]}
+              class="loading loading-spinner loading-xs text-amber-400"
+            />
+            <.icon
+              :if={@project.state == :error}
+              name="hero-exclamation-triangle"
+              class="w-4 h-4 text-error"
+            />
+            <span class="text-sm font-medium text-stone-300">Provisioning Log</span>
+          </div>
+          <div
+            id="provision-log"
+            phx-hook="ProvisionLog"
+            phx-update="ignore"
+            class="h-80"
+          />
         </div>
 
         <%!-- Info Card --%>

@@ -257,7 +257,9 @@ defmodule AutoforgeWeb.ProjectTemplateFilesLive do
                 <div class="px-3 pt-2 pb-1 flex flex-wrap items-center gap-1.5 text-xs text-base-content/50">
                   <span>Variables:</span>
                   <code
-                    :for={var <- ~w(project_name db_host db_port db_name db_test_name db_user db_password)}
+                    :for={
+                      var <- ~w(project_name db_host db_port db_name db_test_name db_user db_password)
+                    }
                     class="px-1.5 py-0.5 rounded bg-base-300 text-base-content/70 font-mono"
                   >
                     {"{{ #{var} }}"}

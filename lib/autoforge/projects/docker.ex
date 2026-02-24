@@ -181,6 +181,134 @@ defmodule Autoforge.Projects.Docker do
     end
   end
 
+  @doc """
+  Runs a command inside a container, streaming output chunks to a callback.
+
+  Similar to `exec_run/3`, but instead of collecting all output, it opens a raw
+  TCP streaming connection and calls `callback.(chunk)` for each output chunk.
+
+  Returns `{:ok, exit_code}` or `{:error, reason}`.
+  """
+  def exec_stream(container_id, cmd, callback, opts \\ []) do
+    working_dir = Keyword.get(opts, :working_dir)
+
+    exec_config =
+      %{
+        "Cmd" => cmd,
+        "AttachStdout" => true,
+        "AttachStderr" => true,
+        "Tty" => true
+      }
+      |> then(fn config ->
+        if working_dir, do: Map.put(config, "WorkingDir", working_dir), else: config
+      end)
+
+    with {:ok, %{status: 201, body: %{"Id" => exec_id}}} <-
+           docker_req(:post, "/containers/#{container_id}/exec", json: exec_config),
+         {:ok, socket, initial_data} <- open_stream_socket(exec_id),
+         :ok <- stream_output(socket, initial_data, callback),
+         {:ok, %{status: 200, body: %{"ExitCode" => exit_code}}} <-
+           docker_req(:get, "/exec/#{exec_id}/json") do
+      {:ok, exit_code}
+    else
+      {:ok, %{body: body}} -> {:error, body}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp open_stream_socket(exec_id) do
+    socket_path =
+      Application.get_env(:autoforge, __MODULE__, [])[:socket_path] || "/var/run/docker.sock"
+
+    case :gen_tcp.connect({:local, socket_path}, 0, [:binary, active: false, packet: :raw]) do
+      {:ok, socket} ->
+        body = Jason.encode!(%{"Detach" => false, "Tty" => true})
+
+        request =
+          "POST /v1.45/exec/#{exec_id}/start HTTP/1.1\r\n" <>
+            "Host: localhost\r\n" <>
+            "Content-Type: application/json\r\n" <>
+            "Connection: Upgrade\r\n" <>
+            "Upgrade: tcp\r\n" <>
+            "Content-Length: #{byte_size(body)}\r\n" <>
+            "\r\n" <>
+            body
+
+        :ok = :gen_tcp.send(socket, request)
+
+        case read_stream_http_response(socket) do
+          {:ok, status, initial_data} when status in [101, 200] ->
+            {:ok, socket, initial_data}
+
+          {:ok, _status, _} ->
+            :gen_tcp.close(socket)
+            {:error, :unexpected_status}
+
+          {:error, reason} ->
+            :gen_tcp.close(socket)
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp stream_output(socket, initial_data, callback) do
+    if initial_data != "", do: callback.(initial_data)
+    stream_recv_loop(socket, callback)
+  end
+
+  defp stream_recv_loop(socket, callback) do
+    case :gen_tcp.recv(socket, 0, 300_000) do
+      {:ok, data} ->
+        callback.(data)
+        stream_recv_loop(socket, callback)
+
+      {:error, :closed} ->
+        :gen_tcp.close(socket)
+        :ok
+
+      {:error, reason} ->
+        :gen_tcp.close(socket)
+        {:error, reason}
+    end
+  end
+
+  defp read_stream_http_response(socket, buffer \\ <<>>) do
+    case :gen_tcp.recv(socket, 0, 10_000) do
+      {:ok, data} ->
+        buffer = buffer <> data
+
+        case :binary.split(buffer, "\r\n\r\n") do
+          [headers, rest] ->
+            case parse_stream_status(headers) do
+              {:ok, status} -> {:ok, status, rest}
+              :error -> {:error, :invalid_response}
+            end
+
+          [_incomplete] ->
+            read_stream_http_response(socket, buffer)
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp parse_stream_status(headers) do
+    case String.split(headers, "\r\n", parts: 2) do
+      ["HTTP/1.1 " <> status_line | _] ->
+        case Integer.parse(status_line) do
+          {status, _} -> {:ok, status}
+          :error -> :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
   # Private helpers
 
   defp docker_req(method, path, opts \\ []) do

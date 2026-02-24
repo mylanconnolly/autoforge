@@ -14,7 +14,8 @@ defmodule Autoforge.Projects.TarBuilder do
         {to_charlist(path), content}
       end)
 
-    tmp_path = Path.join(System.tmp_dir!(), "autoforge_tar_#{System.unique_integer([:positive])}.tar")
+    tmp_path =
+      Path.join(System.tmp_dir!(), "autoforge_tar_#{System.unique_integer([:positive])}.tar")
 
     try do
       case :erl_tar.create(to_charlist(tmp_path), file_list, []) do
