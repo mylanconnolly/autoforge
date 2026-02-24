@@ -54,7 +54,7 @@ defmodule Autoforge.Projects.Project do
         )
         |> Ash.Changeset.set_argument(
           :db_password,
-          :crypto.strong_rand_bytes(32) |> Base.encode64()
+          :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
         )
         |> Ash.Changeset.after_action(fn _changeset, project ->
           %{project_id: project.id}
