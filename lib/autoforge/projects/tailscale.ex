@@ -191,7 +191,14 @@ defmodule Autoforge.Projects.Tailscale do
         {to_charlist(path), content_binary}
       end)
 
-    {:ok, {_, tar_binary}} = :erl_tar.create("memory", entries, [:memory])
-    tar_binary
+    tmp_path =
+      Path.join(System.tmp_dir!(), "autoforge_ts_#{System.unique_integer([:positive])}.tar")
+
+    try do
+      :ok = :erl_tar.create(to_charlist(tmp_path), entries, [])
+      File.read!(tmp_path)
+    after
+      File.rm(tmp_path)
+    end
   end
 end
