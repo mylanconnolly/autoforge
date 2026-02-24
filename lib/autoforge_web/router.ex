@@ -51,6 +51,7 @@ defmodule AutoforgeWeb.Router do
       live "/user-groups/:id/edit", UserGroupFormLive, :edit
       live "/user-groups/:id", UserGroupShowLive
       live "/settings", SettingsLive
+      live "/models", ModelsLive
       live "/conversations", ConversationsLive
       live "/conversations/new", ConversationFormLive
       live "/conversations/:id", ConversationLive

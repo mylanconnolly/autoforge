@@ -66,6 +66,12 @@ defmodule AutoforgeWeb.Layouts do
             active={@active_page == :bots}
           />
           <.sidebar_nav_item
+            icon="hero-rectangle-stack"
+            label="Models"
+            href={~p"/models"}
+            active={@active_page == :models}
+          />
+          <.sidebar_nav_item
             icon="hero-users"
             label="Users"
             href={~p"/users"}

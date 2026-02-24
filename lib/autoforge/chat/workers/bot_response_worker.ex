@@ -421,7 +421,7 @@ defmodule Autoforge.Chat.Workers.BotResponseWorker do
 
   defp maybe_put_anthropic_caching(opts, model) do
     if String.starts_with?(model, "anthropic:") do
-      Keyword.merge(opts, anthropic_prompt_cache: true, anthropic_cache_messages: -2)
+      Keyword.put(opts, :anthropic_prompt_cache, true)
     else
       opts
     end
