@@ -25,6 +25,7 @@ defmodule Autoforge.Application do
       {DynamicSupervisor, name: Autoforge.Projects.DevServerSupervisor, strategy: :one_for_one},
       # Start to serve requests, typically the last entry
       AutoforgeWeb.Endpoint,
+      Autoforge.Projects.DevServerCleanup,
       {AshAuthentication.Supervisor, [otp_app: :autoforge]}
     ]
 
