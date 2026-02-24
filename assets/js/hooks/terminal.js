@@ -3,6 +3,31 @@ import { FitAddon } from "../../vendor/xterm-addon-fit";
 import { WebLinksAddon } from "../../vendor/xterm-addon-web-links";
 import { Socket } from "phoenix";
 
+const terminalTheme = {
+  background: "#1c1917",
+  foreground: "#e7e5e4",
+  cursor: "#e7e5e4",
+  cursorAccent: "#1c1917",
+  selectionBackground: "#44403c",
+  selectionForeground: "#e7e5e4",
+  black: "#1c1917",
+  red: "#f87171",
+  green: "#4ade80",
+  yellow: "#facc15",
+  blue: "#60a5fa",
+  magenta: "#c084fc",
+  cyan: "#22d3ee",
+  white: "#e7e5e4",
+  brightBlack: "#a8a29e",
+  brightRed: "#fca5a5",
+  brightGreen: "#86efac",
+  brightYellow: "#fde68a",
+  brightBlue: "#93c5fd",
+  brightMagenta: "#d8b4fe",
+  brightCyan: "#67e8f9",
+  brightWhite: "#fafaf9",
+};
+
 const TerminalHook = {
   mounted() {
     const projectId = this.el.dataset.projectId;
@@ -12,12 +37,7 @@ const TerminalHook = {
       cursorBlink: true,
       fontSize: 14,
       fontFamily: "'IBM Plex Mono', monospace",
-      theme: {
-        background: "#1c1917",
-        foreground: "#e7e5e4",
-        cursor: "#e7e5e4",
-        selectionBackground: "#44403c",
-      },
+      theme: terminalTheme,
     });
 
     this.fitAddon = new FitAddon();
@@ -108,12 +128,7 @@ const ProvisionLogHook = {
       fontSize: 14,
       fontFamily: "'IBM Plex Mono', monospace",
       scrollback: 10000,
-      theme: {
-        background: "#1c1917",
-        foreground: "#e7e5e4",
-        cursor: "#1c1917",
-        selectionBackground: "#44403c",
-      },
+      theme: { ...terminalTheme, cursor: "#1c1917" },
     });
 
     this.fitAddon = new FitAddon();

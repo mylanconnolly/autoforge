@@ -115,6 +115,8 @@ defmodule Autoforge.Projects.Terminal do
       "Tty" => true,
       "Cmd" => ["/bin/bash", "-l"],
       "Env" => [
+        "TERM=xterm-256color",
+        "COLORTERM=truecolor",
         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin"
       ]
     }
