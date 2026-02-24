@@ -58,13 +58,13 @@ defmodule Autoforge.Projects.Tailscale do
       {:ok, config} ->
         hostname = build_hostname(project)
         volume_name = "autoforge-ts-#{project.id}"
-        auth_key = build_auth_key(config)
 
         # Remove stale container from a previous failed attempt
         container_name = "autoforge-ts-#{project.id}"
         Docker.remove_container(container_name, force: true)
 
-        with :ok <- Docker.pull_image("tailscale/tailscale:latest"),
+        with {:ok, auth_key} <- create_auth_key(config),
+             :ok <- Docker.pull_image("tailscale/tailscale:latest"),
              {:ok, _} <- Docker.create_volume(volume_name),
              {:ok, container_id} <-
                create_sidecar_container(
@@ -127,8 +127,32 @@ defmodule Autoforge.Projects.Tailscale do
     "#{slug}-#{short_id}"
   end
 
-  defp build_auth_key(config) do
-    "tskey-client-#{config.oauth_client_id}-#{config.oauth_client_secret}"
+  defp create_auth_key(config) do
+    case Req.post("https://api.tailscale.com/api/v2/tailnet/-/keys",
+           auth: {config.oauth_client_id, config.oauth_client_secret},
+           json: %{
+             "capabilities" => %{
+               "devices" => %{
+                 "create" => %{
+                   "reusable" => false,
+                   "ephemeral" => true,
+                   "preauthorized" => true,
+                   "tags" => [config.tag]
+                 }
+               }
+             },
+             "expirySeconds" => 300
+           }
+         ) do
+      {:ok, %{status: 200, body: %{"key" => key}}} ->
+        {:ok, key}
+
+      {:ok, %{status: status, body: body}} ->
+        {:error, {:tailscale_api, status, body}}
+
+      {:error, reason} ->
+        {:error, {:tailscale_api, reason}}
+    end
   end
 
   defp create_sidecar_container(
