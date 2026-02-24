@@ -20,7 +20,7 @@ defmodule AutoforgeWeb.ProjectFormLive do
 
     form =
       Project
-      |> AshPhoenix.Form.for_create(:create, actor: user)
+      |> AshPhoenix.Form.for_create(:create, actor: user, forms: [auto?: true])
       |> to_form()
 
     {:ok,
@@ -36,6 +36,24 @@ defmodule AutoforgeWeb.ProjectFormLive do
     form =
       socket.assigns.form.source
       |> AshPhoenix.Form.validate(params)
+      |> to_form()
+
+    {:noreply, assign(socket, form: form)}
+  end
+
+  def handle_event("add_env_var", _params, socket) do
+    form =
+      socket.assigns.form.source
+      |> AshPhoenix.Form.add_form(:env_vars)
+      |> to_form()
+
+    {:noreply, assign(socket, form: form)}
+  end
+
+  def handle_event("remove_env_var", %{"path" => path}, socket) do
+    form =
+      socket.assigns.form.source
+      |> AshPhoenix.Form.remove_form(path)
       |> to_form()
 
     {:noreply, assign(socket, form: form)}
@@ -89,6 +107,67 @@ defmodule AutoforgeWeb.ProjectFormLive do
                 searchable
                 search_input_placeholder="Search templates..."
               />
+
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1.5">
+                    <label class="text-sm font-semibold">Environment Variables</label>
+                    <.popover open_on_hover placement="top" class="max-w-xs">
+                      <.icon
+                        name="hero-information-circle"
+                        class="w-4 h-4 text-base-content/40 cursor-help"
+                      />
+                      <:content>
+                        <p class="text-sm font-medium">Environment Variables</p>
+                        <p class="text-sm text-base-content/70 mt-1">
+                          Define secrets such as private package registry tokens
+                          that will be injected into the project's environment
+                          during provisioning and at runtime.
+                        </p>
+                      </:content>
+                    </.popover>
+                  </div>
+                  <.button type="button" variant="ghost" size="sm" phx-click="add_env_var">
+                    <.icon name="hero-plus" class="w-4 h-4 mr-1" /> Add Variable
+                  </.button>
+                </div>
+
+                <.inputs_for :let={env_form} field={@form[:env_vars]}>
+                  <div class="flex items-start gap-2">
+                    <div class="flex-1">
+                      <.input
+                        field={env_form[:key]}
+                        placeholder="MY_API_KEY"
+                      />
+                    </div>
+                    <div class="flex-1">
+                      <.input
+                        field={env_form[:value]}
+                        type="password"
+                        placeholder="Enter value..."
+                      />
+                    </div>
+                    <input type="hidden" name={env_form[:_form_type].name} value="create" />
+                    <.button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      phx-click="remove_env_var"
+                      phx-value-path={env_form.name}
+                      class="mt-1 text-error"
+                    >
+                      <.icon name="hero-trash" class="w-4 h-4" />
+                    </.button>
+                  </div>
+                </.inputs_for>
+
+                <p
+                  :if={Enum.empty?(@form[:env_vars].value || [])}
+                  class="text-sm text-base-content/50 italic"
+                >
+                  No environment variables added yet.
+                </p>
+              </div>
 
               <div class="flex items-center gap-3 pt-2">
                 <.button type="submit" variant="solid" color="primary">

@@ -44,6 +44,14 @@ defmodule Autoforge.Projects.Project do
     create :create do
       accept [:name, :project_template_id, :db_password]
 
+      argument :env_vars, {:array, :map}
+
+      change manage_relationship(:env_vars,
+               on_no_match: {:create, :create},
+               on_match: :ignore,
+               on_missing: :ignore
+             )
+
       change relate_actor(:user)
 
       change fn changeset, _context ->
