@@ -128,30 +128,51 @@ defmodule Autoforge.Projects.Tailscale do
   end
 
   defp create_auth_key(config) do
-    case Req.post("https://api.tailscale.com/api/v2/tailnet/-/keys",
-           auth: {config.oauth_client_id, config.oauth_client_secret},
-           json: %{
-             "capabilities" => %{
-               "devices" => %{
-                 "create" => %{
-                   "reusable" => false,
-                   "ephemeral" => true,
-                   "preauthorized" => true,
-                   "tags" => [config.tag]
+    with {:ok, access_token} <- get_oauth_token(config) do
+      case Req.post("https://api.tailscale.com/api/v2/tailnet/-/keys",
+             auth: {:bearer, access_token},
+             json: %{
+               "capabilities" => %{
+                 "devices" => %{
+                   "create" => %{
+                     "reusable" => false,
+                     "ephemeral" => true,
+                     "preauthorized" => true,
+                     "tags" => [config.tag]
+                   }
                  }
-               }
-             },
-             "expirySeconds" => 300
-           }
+               },
+               "expirySeconds" => 300
+             }
+           ) do
+        {:ok, %{status: 200, body: %{"key" => key}}} ->
+          {:ok, key}
+
+        {:ok, %{status: status, body: body}} ->
+          {:error, {:tailscale_api, status, body}}
+
+        {:error, reason} ->
+          {:error, {:tailscale_api, reason}}
+      end
+    end
+  end
+
+  defp get_oauth_token(config) do
+    case Req.post("https://api.tailscale.com/api/v2/oauth/token",
+           form: [
+             client_id: config.oauth_client_id,
+             client_secret: config.oauth_client_secret,
+             grant_type: "client_credentials"
+           ]
          ) do
-      {:ok, %{status: 200, body: %{"key" => key}}} ->
-        {:ok, key}
+      {:ok, %{status: 200, body: %{"access_token" => token}}} ->
+        {:ok, token}
 
       {:ok, %{status: status, body: body}} ->
-        {:error, {:tailscale_api, status, body}}
+        {:error, {:tailscale_oauth, status, body}}
 
       {:error, reason} ->
-        {:error, {:tailscale_api, reason}}
+        {:error, {:tailscale_oauth, reason}}
     end
   end
 
