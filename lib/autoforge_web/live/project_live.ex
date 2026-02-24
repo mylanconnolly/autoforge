@@ -362,17 +362,18 @@ defmodule AutoforgeWeb.ProjectLive do
           <%!-- Terminal Tabs --%>
           <div :if={@project.state == :running} class="h-full flex flex-col">
             <%!-- Tab Bar --%>
-            <div class="flex items-center bg-base-100 flex-shrink-0 overflow-x-auto">
+            <div class="flex items-center bg-[#0c0a09] flex-shrink-0 overflow-x-auto">
               <%!-- Server Tab --%>
               <button
                 :if={@dev_server_tab_open}
                 phx-click="switch_terminal"
                 phx-value-id="dev-server"
                 class={[
-                  "group flex items-center gap-1.5 px-4 py-2 text-sm border-r border-base-300 transition-colors cursor-pointer",
+                  "group flex items-center gap-1.5 px-4 py-2 text-sm transition-colors cursor-pointer",
                   if("dev-server" == @active_terminal,
-                    do: "bg-[#1c1917] text-stone-200",
-                    else: "text-base-content/50 hover:text-base-content hover:bg-base-200"
+                    do: "bg-[#1c1917] text-stone-100 border-b-2 border-b-amber-500",
+                    else:
+                      "bg-[#0c0a09] text-stone-500 hover:text-stone-300 hover:bg-stone-800/50 border-b-2 border-b-transparent"
                   )
                 ]}
               >
@@ -389,10 +390,11 @@ defmodule AutoforgeWeb.ProjectLive do
                 phx-click="switch_terminal"
                 phx-value-id={tab.id}
                 class={[
-                  "group flex items-center gap-1.5 px-4 py-2 text-sm border-r border-base-300 transition-colors cursor-pointer",
+                  "group flex items-center gap-1.5 px-4 py-2 text-sm transition-colors cursor-pointer",
                   if(tab.id == @active_terminal,
-                    do: "bg-[#1c1917] text-stone-200",
-                    else: "text-base-content/50 hover:text-base-content hover:bg-base-200"
+                    do: "bg-[#1c1917] text-stone-100 border-b-2 border-b-amber-500",
+                    else:
+                      "bg-[#0c0a09] text-stone-500 hover:text-stone-300 hover:bg-stone-800/50 border-b-2 border-b-transparent"
                   )
                 ]}
               >
@@ -407,7 +409,7 @@ defmodule AutoforgeWeb.ProjectLive do
                     if(tab.id == @active_terminal,
                       do: "text-stone-500 hover:text-stone-200 hover:bg-stone-700",
                       else:
-                        "text-base-content/30 hover:text-base-content/70 hover:bg-base-300 opacity-0 group-hover:opacity-100"
+                        "text-stone-600 hover:text-stone-300 hover:bg-stone-600 opacity-0 group-hover:opacity-100"
                     )
                   ]}
                 >
@@ -416,7 +418,7 @@ defmodule AutoforgeWeb.ProjectLive do
               </button>
               <button
                 phx-click="new_terminal"
-                class="flex items-center px-3 py-2 text-base-content/40 hover:text-base-content/70 transition-colors cursor-pointer"
+                class="flex items-center px-3 py-2 text-stone-600 hover:text-stone-400 transition-colors cursor-pointer"
                 title="New terminal"
               >
                 <.icon name="hero-plus" class="w-4 h-4" />
