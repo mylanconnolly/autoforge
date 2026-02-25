@@ -263,6 +263,13 @@ const ChatInput = {
   },
 };
 
+const FocusAndSelect = {
+  mounted() {
+    this.el.focus();
+    this.el.select();
+  },
+};
+
 const CopyToClipboard = {
   mounted() {
     this.el.addEventListener("click", () => {
@@ -284,7 +291,7 @@ const csrfToken = document
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken },
-  hooks: { ...colocatedHooks, ...FluxonHooks, ChatScroll, ChatInput, CopyToClipboard, Terminal: TerminalHook, ProvisionLog: ProvisionLogHook, DevServer: DevServerHook, SortableTable: SortableTableHook, DropZone: DropZoneHook, PopoverGroup: PopoverGroupHook },
+  hooks: { ...colocatedHooks, ...FluxonHooks, ChatScroll, ChatInput, CopyToClipboard, FocusAndSelect, Terminal: TerminalHook, ProvisionLog: ProvisionLogHook, DevServer: DevServerHook, SortableTable: SortableTableHook, DropZone: DropZoneHook, PopoverGroup: PopoverGroupHook },
   dom: {
     onBeforeElUpdated(from, to) {
       FluxonDOM.onBeforeElUpdated(from, to);

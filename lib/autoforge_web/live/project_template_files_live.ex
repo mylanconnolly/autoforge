@@ -25,7 +25,8 @@ defmodule AutoforgeWeb.ProjectTemplateFilesLive do
          template: template,
          files: files,
          selected_file: nil,
-         file_form: nil
+         file_form: nil,
+         renaming_id: nil
        )}
     else
       {:ok,
@@ -99,9 +100,9 @@ defmodule AutoforgeWeb.ProjectTemplateFilesLive do
     case ProjectTemplateFile
          |> AshPhoenix.Form.for_create(:create, actor: user)
          |> AshPhoenix.Form.submit(params: attrs) do
-      {:ok, _folder} ->
+      {:ok, folder} ->
         files = load_files(socket.assigns.template.id, user)
-        {:noreply, assign(socket, files: files)}
+        {:noreply, assign(socket, files: files, renaming_id: folder.id)}
 
       {:error, _form} ->
         {:noreply, put_flash(socket, :error, "Failed to create folder.")}
@@ -126,6 +127,35 @@ defmodule AutoforgeWeb.ProjectTemplateFilesLive do
       end
 
     {:noreply, assign(socket, files: files, selected_file: selected_file, file_form: nil)}
+  end
+
+  def handle_event("start_rename", %{"id" => id}, socket) do
+    {:noreply, assign(socket, renaming_id: id)}
+  end
+
+  def handle_event("save_rename", %{"id" => id, "name" => name}, socket) do
+    user = socket.assigns.current_user
+    file = Enum.find(socket.assigns.files, &(&1.id == id))
+    name = String.trim(name)
+
+    if file && name != "" do
+      Ash.update!(file, %{name: name}, action: :update, actor: user)
+    end
+
+    files = load_files(socket.assigns.template.id, user)
+
+    selected_file =
+      if socket.assigns.selected_file && socket.assigns.selected_file.id == id do
+        Enum.find(files, &(&1.id == id))
+      else
+        socket.assigns.selected_file
+      end
+
+    {:noreply, assign(socket, files: files, selected_file: selected_file, renaming_id: nil)}
+  end
+
+  def handle_event("cancel_rename", _params, socket) do
+    {:noreply, assign(socket, renaming_id: nil)}
   end
 
   def handle_event("validate_file", %{"form" => params}, socket) do
@@ -229,6 +259,7 @@ defmodule AutoforgeWeb.ProjectTemplateFilesLive do
                   :for={node <- @tree}
                   node={node}
                   selected_id={@selected_file && @selected_file.id}
+                  renaming_id={@renaming_id}
                   depth={0}
                 />
               <% end %>
@@ -294,6 +325,7 @@ defmodule AutoforgeWeb.ProjectTemplateFilesLive do
 
   attr :node, :map, required: true
   attr :selected_id, :string, default: nil
+  attr :renaming_id, :string, default: nil
   attr :depth, :integer, default: 0
 
   defp tree_node(assigns) do
@@ -318,42 +350,66 @@ defmodule AutoforgeWeb.ProjectTemplateFilesLive do
             if(@node.file.is_directory, do: "text-warning", else: "text-base-content/50")
           ]}
         />
-        <span class="truncate flex-1">{@node.file.name}</span>
-        <div class="hidden group-hover:flex items-center gap-0.5">
-          <button
-            :if={@node.file.is_directory}
-            phx-click="add_file"
-            phx-value-parent_id={@node.file.id}
-            class="p-0.5 rounded hover:bg-base-100 transition-colors"
-            title="Add file"
-          >
-            <.icon name="hero-document-plus" class="w-3 h-3" />
-          </button>
-          <button
-            :if={@node.file.is_directory}
-            phx-click="add_folder"
-            phx-value-parent_id={@node.file.id}
-            class="p-0.5 rounded hover:bg-base-100 transition-colors"
-            title="Add folder"
-          >
-            <.icon name="hero-folder-plus" class="w-3 h-3" />
-          </button>
-          <button
-            phx-click="delete_file"
+        <%= if @node.file.id == @renaming_id do %>
+          <form
+            phx-submit="save_rename"
             phx-value-id={@node.file.id}
-            data-confirm="Delete this file?"
-            class="p-0.5 rounded hover:bg-error/20 text-error/60 hover:text-error transition-colors"
-            title="Delete"
+            class="flex-1 flex items-center gap-1"
           >
-            <.icon name="hero-trash" class="w-3 h-3" />
-          </button>
-        </div>
+            <input
+              type="text"
+              name="name"
+              value={@node.file.name}
+              id={"rename-input-#{@node.file.id}"}
+              phx-hook="FocusAndSelect"
+              phx-keydown="cancel_rename"
+              phx-key="Escape"
+              class="flex-1 px-1.5 py-0.5 text-sm rounded bg-base-100 border border-primary/50 focus:outline-none focus:border-primary"
+            />
+          </form>
+        <% else %>
+          <span class="truncate flex-1">{@node.file.name}</span>
+          <.dropdown placement="bottom-end">
+            <:toggle>
+              <button class="p-0.5 rounded hover:bg-base-300 transition-colors hidden group-hover:block">
+                <.icon name="hero-ellipsis-horizontal" class="w-4 h-4" />
+              </button>
+            </:toggle>
+            <.dropdown_button
+              :if={@node.file.is_directory}
+              phx-click="add_file"
+              phx-value-parent_id={@node.file.id}
+            >
+              <.icon name="hero-document-plus" class="w-4 h-4 mr-2" /> New File
+            </.dropdown_button>
+            <.dropdown_button
+              :if={@node.file.is_directory}
+              phx-click="add_folder"
+              phx-value-parent_id={@node.file.id}
+            >
+              <.icon name="hero-folder-plus" class="w-4 h-4 mr-2" /> New Folder
+            </.dropdown_button>
+            <.dropdown_button phx-click="start_rename" phx-value-id={@node.file.id}>
+              <.icon name="hero-pencil-square" class="w-4 h-4 mr-2" /> Rename
+            </.dropdown_button>
+            <.dropdown_separator />
+            <.dropdown_button
+              phx-click="delete_file"
+              phx-value-id={@node.file.id}
+              data-confirm="Delete this item?"
+              class="text-error"
+            >
+              <.icon name="hero-trash" class="w-4 h-4 mr-2" /> Delete
+            </.dropdown_button>
+          </.dropdown>
+        <% end %>
       </div>
       <div :if={@node.file.is_directory}>
         <.tree_node
           :for={child <- @node.children}
           node={child}
           selected_id={@selected_id}
+          renaming_id={@renaming_id}
           depth={@depth + 1}
         />
       </div>

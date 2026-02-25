@@ -159,7 +159,7 @@ defmodule AutoforgeWeb.ProjectFilesComponent do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="absolute inset-0 pointer-events-none z-20">
+    <div class="absolute inset-0 pointer-events-none z-20 overflow-hidden">
       <%!-- Toggle button --%>
       <button
         phx-click="toggle_sidebar"
