@@ -70,6 +70,7 @@ defmodule AutoforgeWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/projects/:project_id/files/:id", ProjectFileController, :show
     auth_routes AuthController, Autoforge.Accounts.User, path: "/auth"
     sign_out_route AuthController
 

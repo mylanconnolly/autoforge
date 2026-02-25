@@ -3,7 +3,14 @@ defmodule Autoforge.Projects.Sandbox do
   High-level orchestration module for project sandbox lifecycle.
   """
 
-  alias Autoforge.Projects.{Docker, ProjectTemplateFile, Tailscale, TarBuilder, TemplateRenderer}
+  alias Autoforge.Projects.{
+    Docker,
+    ProjectFiles,
+    ProjectTemplateFile,
+    Tailscale,
+    TarBuilder,
+    TemplateRenderer
+  }
 
   require Ash.Query
   require Logger
@@ -66,6 +73,7 @@ defmodule Autoforge.Projects.Sandbox do
              create_sandbox_user(app_container_id)
            end),
          :ok <- run_startup_script(app_container_id, project, variables),
+         _ <- sync_project_files(project),
          _ <- broadcast_provision_log(project, "Provisioning complete"),
          {:ok, project} <-
            Ash.update(
@@ -108,6 +116,7 @@ defmodule Autoforge.Projects.Sandbox do
          :ok <- maybe_start_tailscale(project),
          :ok <- create_sandbox_user(project.container_id),
          :ok <- run_startup_script(project.container_id, project, variables),
+         _ <- sync_project_files(project),
          {:ok, project} <- Ash.update(project, %{}, action: :start, authorize?: false) do
       {:ok, project}
     else
@@ -508,4 +517,19 @@ defmodule Autoforge.Projects.Sandbox do
   end
 
   defp maybe_stop_tailscale(_), do: :ok
+
+  defp sync_project_files(project) do
+    case ProjectFiles.sync_to_container(project) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to sync project files for #{project.id}: #{inspect(reason)}")
+        :ok
+    end
+  rescue
+    error ->
+      Logger.warning("Failed to sync project files for #{project.id}: #{inspect(error)}")
+      :ok
+  end
 end

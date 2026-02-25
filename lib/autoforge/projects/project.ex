@@ -255,5 +255,6 @@ defmodule Autoforge.Projects.Project do
     end
 
     has_many :env_vars, Autoforge.Projects.ProjectEnvVar
+    has_many :files, Autoforge.Projects.ProjectFile
   end
 end

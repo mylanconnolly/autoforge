@@ -363,7 +363,7 @@ defmodule AutoforgeWeb.ProjectLive do
         </div>
 
         <%!-- Main Content Area --%>
-        <div class="flex-1 min-h-0">
+        <div class="flex-1 min-h-0 relative">
           <%!-- Provision Log --%>
           <div
             :if={@provision_log_started and @project.state in [:creating, :provisioning, :error]}
@@ -517,6 +517,15 @@ defmodule AutoforgeWeb.ProjectLive do
               </p>
             </div>
           </div>
+
+          <%!-- Files sidebar overlay --%>
+          <.live_component
+            :if={@project.state in [:running, :stopped, :error, :provisioning]}
+            module={AutoforgeWeb.ProjectFilesComponent}
+            id="project-files"
+            project={@project}
+            current_user={@current_user}
+          />
         </div>
       </div>
     </Layouts.app>

@@ -9,10 +9,8 @@ defmodule Autoforge.Google.CloudStorage do
   # ── Objects ──────────────────────────────────────────────────────────────────
 
   def upload_object(token, bucket, object_name, content, content_type) do
-    name = URI.encode(object_name, &URI.char_unreserved?/1)
-
     gcs_req(token, :post, "/upload/storage/v1/b/#{bucket}/o",
-      params: [uploadType: "media", name: name],
+      params: [uploadType: "media", name: object_name],
       body: content,
       headers: [{"content-type", content_type}]
     )
