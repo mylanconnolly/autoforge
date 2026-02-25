@@ -394,14 +394,6 @@ ash_phoenix_template =
               && curl -fsSL https://deb.nodesource.com/setup_25.x | bash - \
               && apt-get install -y nodejs
 
-            curl -fsSL https://claude.ai/install.sh | bash
-
-            echo "PATH=$HOME/.local/bin:$PATH" >> $HOME/.bashrc
-
-            /root/.local/bin/claude mcp add --transport http tidewave http://localhost:4000/tidewave/mcp
-
-            git config --global init.defaultBranch main
-
             mix archive.install hex igniter_new --force
             mix archive.install hex phx_new 1.8.4 --force
 
@@ -429,6 +421,15 @@ ash_phoenix_template =
             sed -i 's/password: "postgres"/password: "{{ db_password }}"/' config/test.exs
             sed -i 's/hostname: "localhost"/hostname: "{{ db_host }}"/' config/test.exs
             sed -i 's/database: "{{ db_test_name }}_test#{System.get_env("MIX_TEST_PARTITION")}"/database: "{{ db_test_name }}#{System.get_env("MIX_TEST_PARTITION")}"/' config/test.exs
+            """,
+            startup_script: ~S"""
+            curl -fsSL https://claude.ai/install.sh | bash
+
+            echo "PATH=$HOME/.local/bin:$PATH" >> $HOME/.bashrc
+
+            $HOME/.local/bin/claude mcp add --transport http tidewave http://localhost:4000/tidewave/mcp
+
+            mix local.hex --force
             """,
             dev_server_script: "mix ecto.setup\nmix phx.server"
           },

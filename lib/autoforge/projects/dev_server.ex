@@ -171,10 +171,12 @@ defmodule Autoforge.Projects.DevServer do
       "AttachStderr" => true,
       "Tty" => true,
       "Cmd" => ["/bin/bash", "-c", wrapped],
+      "User" => "app",
       "WorkingDir" => "/app",
       "Env" =>
         [
           "TERM=xterm-256color",
+          "HOME=/home/app",
           "MIX_ENV=dev",
           "PORT=4000",
           "DATABASE_URL=postgresql://#{vars["db_user"]}:#{vars["db_password"]}@#{vars["db_host"]}:#{vars["db_port"]}/#{vars["db_name"]}",

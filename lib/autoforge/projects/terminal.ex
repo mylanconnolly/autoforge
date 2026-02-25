@@ -123,21 +123,22 @@ defmodule Autoforge.Projects.Terminal do
     ssh_config = "Host *\n  StrictHostKeyChecking accept-new\n"
 
     commands = [
-      ["mkdir", "-p", "/root/.ssh"],
+      ["mkdir", "-p", "/home/app/.ssh"],
       [
         "/bin/bash",
         "-c",
-        "cat > /root/.ssh/id_ed25519 << 'SSHEOF'\n#{user.ssh_private_key}SSHEOF"
+        "cat > /home/app/.ssh/id_ed25519 << 'SSHEOF'\n#{user.ssh_private_key}SSHEOF"
       ],
-      ["chmod", "600", "/root/.ssh/id_ed25519"],
+      ["chmod", "600", "/home/app/.ssh/id_ed25519"],
       [
         "/bin/bash",
         "-c",
-        "cat > /root/.ssh/id_ed25519.pub << 'SSHEOF'\n#{user.ssh_public_key}\nSSHEOF"
+        "cat > /home/app/.ssh/id_ed25519.pub << 'SSHEOF'\n#{user.ssh_public_key}\nSSHEOF"
       ],
-      ["chmod", "644", "/root/.ssh/id_ed25519.pub"],
-      ["/bin/bash", "-c", "cat > /root/.ssh/config << 'SSHEOF'\n#{ssh_config}SSHEOF"],
-      ["chmod", "600", "/root/.ssh/config"]
+      ["chmod", "644", "/home/app/.ssh/id_ed25519.pub"],
+      ["/bin/bash", "-c", "cat > /home/app/.ssh/config << 'SSHEOF'\n#{ssh_config}SSHEOF"],
+      ["chmod", "600", "/home/app/.ssh/config"],
+      ["chown", "-R", "app:app", "/home/app/.ssh"]
     ]
 
     run_setup_commands(container_id, commands, "SSH key injection")
@@ -161,7 +162,7 @@ defmodule Autoforge.Projects.Terminal do
                   "config",
                   "--global",
                   "user.signingkey",
-                  "/root/.ssh/id_ed25519.pub"
+                  "/home/app/.ssh/id_ed25519.pub"
                 ],
                 ["git", "config", "--global", "commit.gpgsign", "true"]
               ]
@@ -169,16 +170,16 @@ defmodule Autoforge.Projects.Terminal do
               []
             end
 
-        run_setup_commands(container_id, commands, "Git configuration")
+        run_setup_commands(container_id, commands, "Git configuration", user: "app")
 
       _ ->
         Logger.debug("git not available in container #{container_id}, skipping git config")
     end
   end
 
-  defp run_setup_commands(container_id, commands, label) do
+  defp run_setup_commands(container_id, commands, label, opts \\ []) do
     Enum.each(commands, fn cmd ->
-      case Docker.exec_run(container_id, cmd) do
+      case Docker.exec_run(container_id, cmd, opts) do
         {:ok, %{exit_code: 0}} ->
           :ok
 
@@ -205,11 +206,14 @@ defmodule Autoforge.Projects.Terminal do
       "AttachStderr" => true,
       "Tty" => true,
       "Cmd" => ["/bin/bash", "-l"],
+      "User" => "app",
+      "WorkingDir" => "/app",
       "Env" =>
         [
           "TERM=xterm-256color",
           "COLORTERM=truecolor",
-          "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin"
+          "HOME=/home/app",
+          "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/app/.local/bin"
         ] ++ user_env_vars
     }
 

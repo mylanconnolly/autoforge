@@ -155,6 +155,24 @@ defmodule AutoforgeWeb.ProjectTemplateFormLive do
 
               <div>
                 <.textarea
+                  field={@form[:startup_script]}
+                  label="Startup Script"
+                  placeholder="curl -fsSL https://claude.ai/install.sh | bash"
+                  rows={5}
+                  class="font-mono text-sm bg-base-300 border-base-300 rounded-lg px-3 py-2 w-full max-h-80 overflow-y-auto"
+                />
+                <p class="mt-1.5 text-xs text-base-content/50">
+                  Runs as the
+                  <code class="px-1 py-0.5 rounded bg-base-300 text-base-content/70 font-mono">
+                    app
+                  </code>
+                  user on every container start. Use for user-level tooling (e.g. CLI installs).
+                  The same template variables are available.
+                </p>
+              </div>
+
+              <div>
+                <.textarea
                   field={@form[:dev_server_script]}
                   label="Dev Server Script"
                   placeholder="mix ecto.setup\nmix phx.server"

@@ -61,6 +61,11 @@ defmodule Autoforge.Projects.Sandbox do
              upload_template_files(app_container_id, project, variables)
            end),
          :ok <- run_bootstrap_script(app_container_id, project, variables),
+         :ok <-
+           log_and_run(project, "Creating app user...", fn ->
+             create_sandbox_user(app_container_id)
+           end),
+         :ok <- run_startup_script(app_container_id, project, variables),
          _ <- broadcast_provision_log(project, "Provisioning complete"),
          {:ok, project} <-
            Ash.update(
@@ -95,9 +100,14 @@ defmodule Autoforge.Projects.Sandbox do
   Starts a stopped project by restarting its containers.
   """
   def start(project) do
+    project = Ash.load!(project, [:project_template, :env_vars], authorize?: false)
+    variables = TemplateRenderer.build_variables(project)
+
     with :ok <- Docker.start_container(project.db_container_id),
          :ok <- Docker.start_container(project.container_id),
          :ok <- maybe_start_tailscale(project),
+         :ok <- create_sandbox_user(project.container_id),
+         :ok <- run_startup_script(project.container_id, project, variables),
          {:ok, project} <- Ash.update(project, %{}, action: :start, authorize?: false) do
       {:ok, project}
     else
@@ -371,6 +381,69 @@ defmodule Autoforge.Projects.Sandbox do
 
           {:ok, code} ->
             {:error, "Bootstrap failed (exit #{code})"}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp create_sandbox_user(container_id) do
+    # Create the app user idempotently, handling the case where UID 1000
+    # is already taken by another user (e.g. "ubuntu" in Ubuntu images).
+    script = """
+    if id -u app >/dev/null 2>&1; then
+      exit 0
+    fi
+    existing=$(getent passwd 1000 | cut -d: -f1)
+    if [ -n "$existing" ]; then
+      usermod -l app -d /home/app -m "$existing"
+      groupmod -n app "$existing"
+    else
+      useradd -m -u 1000 -s /bin/bash app
+    fi
+    """
+
+    with {:ok, %{exit_code: 0}} <-
+           Docker.exec_run(container_id, ["/bin/bash", "-c", script]),
+         {:ok, %{exit_code: 0}} <-
+           Docker.exec_run(container_id, ["chown", "-R", "app:app", "/app"]) do
+      :ok
+    else
+      {:ok, %{exit_code: code, output: output}} ->
+        {:error, "Failed to create app user (exit #{code}): #{output}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp run_startup_script(container_id, project, variables) do
+    template = project.project_template
+
+    case TemplateRenderer.render_script(template.startup_script, variables) do
+      {:ok, ""} ->
+        :ok
+
+      {:ok, script} ->
+        broadcast_provision_log(project, "Running startup script...")
+
+        callback = fn chunk ->
+          broadcast_provision_log(project, {:output, chunk})
+        end
+
+        case Docker.exec_stream(container_id, ["/bin/bash", "-c", script], callback,
+               working_dir: "/app",
+               user: "app"
+             ) do
+          {:ok, 0} ->
+            :ok
+
+          {:ok, code} ->
+            {:error, "Startup script failed (exit #{code})"}
 
           {:error, reason} ->
             {:error, reason}

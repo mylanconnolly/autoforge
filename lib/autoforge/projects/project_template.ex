@@ -14,11 +14,28 @@ defmodule Autoforge.Projects.ProjectTemplate do
     defaults [:read, :destroy]
 
     create :create do
-      accept [:name, :description, :base_image, :db_image, :bootstrap_script, :dev_server_script]
+      accept [
+        :name,
+        :description,
+        :base_image,
+        :db_image,
+        :bootstrap_script,
+        :startup_script,
+        :dev_server_script
+      ]
     end
 
     update :update do
-      accept [:name, :description, :base_image, :db_image, :bootstrap_script, :dev_server_script]
+      accept [
+        :name,
+        :description,
+        :base_image,
+        :db_image,
+        :bootstrap_script,
+        :startup_script,
+        :dev_server_script
+      ]
+
       require_atomic? false
     end
   end
@@ -61,6 +78,11 @@ defmodule Autoforge.Projects.ProjectTemplate do
     end
 
     attribute :bootstrap_script, :string do
+      allow_nil? true
+      public? true
+    end
+
+    attribute :startup_script, :string do
       allow_nil? true
       public? true
     end

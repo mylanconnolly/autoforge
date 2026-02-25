@@ -94,6 +94,7 @@ defmodule Autoforge.Projects.Docker do
   def exec_run(container_id, cmd, opts \\ []) do
     env = Keyword.get(opts, :env, [])
     working_dir = Keyword.get(opts, :working_dir)
+    user = Keyword.get(opts, :user)
 
     exec_config =
       %{
@@ -104,6 +105,9 @@ defmodule Autoforge.Projects.Docker do
       }
       |> then(fn config ->
         if working_dir, do: Map.put(config, "WorkingDir", working_dir), else: config
+      end)
+      |> then(fn config ->
+        if user, do: Map.put(config, "User", user), else: config
       end)
 
     with {:ok, %{status: 201, body: %{"Id" => exec_id}}} <-
@@ -214,6 +218,7 @@ defmodule Autoforge.Projects.Docker do
   """
   def exec_stream(container_id, cmd, callback, opts \\ []) do
     working_dir = Keyword.get(opts, :working_dir)
+    user = Keyword.get(opts, :user)
 
     exec_config =
       %{
@@ -224,6 +229,9 @@ defmodule Autoforge.Projects.Docker do
       }
       |> then(fn config ->
         if working_dir, do: Map.put(config, "WorkingDir", working_dir), else: config
+      end)
+      |> then(fn config ->
+        if user, do: Map.put(config, "User", user), else: config
       end)
 
     with {:ok, %{status: 201, body: %{"Id" => exec_id}}} <-
