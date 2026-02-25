@@ -251,8 +251,7 @@ defmodule AutoforgeWeb.ProjectLive do
            )}
 
         {:error, reason} ->
-          {:noreply,
-           put_flash(socket, :error, "Failed to start code-server: #{inspect(reason)}")}
+          {:noreply, put_flash(socket, :error, "Failed to start code-server: #{inspect(reason)}")}
       end
     end
   end

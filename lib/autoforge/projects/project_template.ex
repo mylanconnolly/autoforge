@@ -21,7 +21,8 @@ defmodule Autoforge.Projects.ProjectTemplate do
         :db_image,
         :bootstrap_script,
         :startup_script,
-        :dev_server_script
+        :dev_server_script,
+        :code_server_extensions
       ]
     end
 
@@ -33,7 +34,8 @@ defmodule Autoforge.Projects.ProjectTemplate do
         :db_image,
         :bootstrap_script,
         :startup_script,
-        :dev_server_script
+        :dev_server_script,
+        :code_server_extensions
       ]
 
       require_atomic? false
@@ -90,6 +92,12 @@ defmodule Autoforge.Projects.ProjectTemplate do
     attribute :dev_server_script, :string do
       allow_nil? true
       public? true
+    end
+
+    attribute :code_server_extensions, {:array, Autoforge.Projects.CodeServerExtension} do
+      allow_nil? true
+      public? true
+      default []
     end
 
     create_timestamp :inserted_at

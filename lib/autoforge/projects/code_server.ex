@@ -69,8 +69,9 @@ defmodule Autoforge.Projects.CodeServer do
         broadcast(project.id, {:code_server_started})
       end
 
-      {:noreply,
-       %{state | socket: socket, exec_id: exec_id, ready?: ready}}
+      install_extensions_async(project)
+
+      {:noreply, %{state | socket: socket, exec_id: exec_id, ready?: ready}}
     else
       {:error, reason} ->
         Logger.error("Failed to start code-server for project #{project.id}: #{inspect(reason)}")
@@ -159,6 +160,31 @@ defmodule Autoforge.Projects.CodeServer do
       {:ok, 0} -> :ok
       {:ok, code} -> {:error, "code-server install failed (exit #{code})"}
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp install_extensions_async(project) do
+    extensions = project.project_template.code_server_extensions || []
+
+    if extensions != [] do
+      Task.Supervisor.start_child(Autoforge.TaskSupervisor, fn ->
+        Enum.each(extensions, fn ext ->
+          case Autoforge.Projects.Docker.exec_run(
+                 project.container_id,
+                 ["code-server", "--install-extension", ext.id],
+                 user: "app"
+               ) do
+            {:ok, %{exit_code: 0}} ->
+              :ok
+
+            {:ok, %{exit_code: _code, output: output}} ->
+              Logger.warning("Failed to install extension #{ext.id}: #{output}")
+
+            {:error, reason} ->
+              Logger.warning("Failed to install extension #{ext.id}: #{inspect(reason)}")
+          end
+        end)
+      end)
     end
   end
 

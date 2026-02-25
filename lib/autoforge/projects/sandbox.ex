@@ -74,6 +74,7 @@ defmodule Autoforge.Projects.Sandbox do
              create_sandbox_user(app_container_id)
            end),
          :ok <- install_code_server(app_container_id, project),
+         :ok <- install_code_server_extensions(app_container_id, project),
          :ok <- run_startup_script(app_container_id, project, variables),
          _ <- sync_project_files(project),
          _ <- broadcast_provision_log(project, "Provisioning complete"),
@@ -452,6 +453,32 @@ defmodule Autoforge.Projects.Sandbox do
       {:ok, 0} -> :ok
       {:ok, code} -> {:error, "code-server install failed (exit #{code})"}
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp install_code_server_extensions(container_id, project) do
+    extensions = project.project_template.code_server_extensions || []
+
+    if extensions == [] do
+      :ok
+    else
+      broadcast_provision_log(project, "Installing code-server extensions...")
+
+      Enum.reduce_while(extensions, :ok, fn ext, :ok ->
+        case Docker.exec_run(container_id, ["code-server", "--install-extension", ext.id],
+               user: "app"
+             ) do
+          {:ok, %{exit_code: 0}} ->
+            {:cont, :ok}
+
+          {:ok, %{exit_code: _code, output: output}} ->
+            Logger.warning("Failed to install extension #{ext.id}: #{output}")
+            {:cont, :ok}
+
+          {:error, reason} ->
+            {:halt, {:error, reason}}
+        end
+      end)
     end
   end
 
