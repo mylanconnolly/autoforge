@@ -79,6 +79,46 @@ defmodule AutoforgeWeb.ProjectTemplateFormLive do
     end
   end
 
+  @template_variables [
+    {"project_name", "The project name as entered by the user"},
+    {"db_host", "Hostname of the PostgreSQL container"},
+    {"db_port", "PostgreSQL port (always 5432)"},
+    {"db_name", "Name of the primary database"},
+    {"db_test_name", "Name of the test database"},
+    {"db_user", "Database username (always postgres)"},
+    {"db_password", "Auto-generated database password"},
+    {"app_url", "Full Tailscale URL with https:// scheme"},
+    {"phx_host", "Tailscale hostname without scheme (for PHX_HOST)"}
+  ]
+
+  defp template_variables(assigns) do
+    assigns = assign(assigns, :variables, @template_variables)
+
+    ~H"""
+    <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-base-content/50">
+      <span>Variables:</span>
+      <.popover :for={{var, desc} <- @variables} open_on_hover placement="top" class="max-w-xs">
+        <code
+          id={"var-#{var}-#{System.unique_integer([:positive])}"}
+          phx-hook="CopyToClipboard"
+          data-clipboard-text={"{{ #{var} }}"}
+          data-copied-html={"<span class='text-success text-[10px]'>Copied!</span>"}
+          class="px-1.5 py-0.5 rounded bg-base-300 text-base-content/70 font-mono cursor-pointer hover:bg-primary/15 hover:text-primary transition-colors"
+        >
+          {"{{ #{var} }}"}
+        </code>
+        <:content>
+          <p class="text-xs">
+            <span class="font-semibold text-base-content">{var}</span>
+            <span class="text-base-content/60"> — {desc}</span>
+          </p>
+          <p class="text-[10px] text-base-content/40 mt-1">Click to copy</p>
+        </:content>
+      </.popover>
+    </div>
+    """
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -139,18 +179,7 @@ defmodule AutoforgeWeb.ProjectTemplateFormLive do
                   rows={8}
                   class="font-mono text-sm bg-base-300 border-base-300 rounded-lg px-3 py-2 w-full max-h-80 overflow-y-auto"
                 />
-                <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-base-content/50">
-                  <span>Variables:</span>
-                  <code
-                    :for={
-                      var <-
-                        ~w(project_name db_host db_port db_name db_test_name db_user db_password)
-                    }
-                    class="px-1.5 py-0.5 rounded bg-base-300 text-base-content/70 font-mono"
-                  >
-                    {"{{ #{var} }}"}
-                  </code>
-                </div>
+                <.template_variables />
               </div>
 
               <div>
@@ -167,8 +196,8 @@ defmodule AutoforgeWeb.ProjectTemplateFormLive do
                     app
                   </code>
                   user on every container start. Use for user-level tooling (e.g. CLI installs).
-                  The same template variables are available.
                 </p>
+                <.template_variables />
               </div>
 
               <div>
@@ -181,8 +210,9 @@ defmodule AutoforgeWeb.ProjectTemplateFormLive do
                 />
                 <p class="mt-1.5 text-xs text-base-content/50">
                   Multi-line script to start the dev server. Each line runs in sequence.
-                  The same template variables are available. Leave blank to disable the server button.
+                  Leave blank to disable the server button.
                 </p>
+                <.template_variables />
               </div>
 
               <div class="flex items-center gap-3 pt-2">
