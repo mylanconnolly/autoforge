@@ -163,12 +163,14 @@ defmodule Autoforge.Projects.Terminal do
           )
         end
 
+        git_name = user.name || to_string(user.email)
+
         commands =
           [
             ["git", "config", "--global", "init.defaultBranch", "main"],
-            ["git", "config", "--global", "user.email", to_string(user.email)]
+            ["git", "config", "--global", "user.email", to_string(user.email)],
+            ["git", "config", "--global", "user.name", git_name]
           ] ++
-            if(user.name, do: [["git", "config", "--global", "user.name", user.name]], else: []) ++
             if user.ssh_private_key && user.ssh_public_key do
               [
                 ["git", "config", "--global", "gpg.format", "ssh"],

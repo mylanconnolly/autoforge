@@ -23,7 +23,7 @@ defmodule Autoforge.Projects.Sandbox do
   uploads template files, runs bootstrap script, and transitions to :running.
   """
   def provision(project) do
-    project = Ash.load!(project, [:project_template, :env_vars], authorize?: false)
+    project = Ash.load!(project, [:project_template, :env_vars, :user], authorize?: false)
     variables = TemplateRenderer.build_variables(project)
     network_name = "autoforge-#{project.id}"
     db_alias = "db-#{project.id}"
@@ -64,6 +64,7 @@ defmodule Autoforge.Projects.Sandbox do
          {ts_container_id, ts_hostname} <-
            maybe_create_tailscale_sidecar(project, app_container_id),
          variables <- maybe_add_tailscale_vars(variables, ts_hostname),
+         :ok <- configure_git_identity(app_container_id, project.user),
          :ok <-
            log_and_run(project, "Uploading template files...", fn ->
              upload_template_files(app_container_id, project, variables)
@@ -454,6 +455,23 @@ defmodule Autoforge.Projects.Sandbox do
       {:ok, code} -> {:error, "code-server install failed (exit #{code})"}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp configure_git_identity(container_id, user) do
+    email = to_string(user.email)
+    name = user.name || email
+
+    commands =
+      [
+        ["git", "config", "--global", "user.email", email],
+        ["git", "config", "--global", "user.name", name]
+      ]
+
+    Enum.each(commands, fn cmd ->
+      Docker.exec_run(container_id, cmd)
+    end)
+
+    :ok
   end
 
   defp install_code_server_extensions(container_id, project) do
