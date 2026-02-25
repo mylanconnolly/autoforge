@@ -41,8 +41,11 @@ defmodule Autoforge.GitHub.RepoSetup do
          {:ok, _project} <- link_project(project, owner, repo_name) do
       # Push is best-effort — the repo may have no commits yet
       case initial_push(project.container_id) do
-        :ok -> Logger.info("Initial push to #{owner}/#{repo_name} succeeded")
-        {:error, reason} -> Logger.warning("Initial push to #{owner}/#{repo_name} skipped: #{reason}")
+        :ok ->
+          Logger.info("Initial push to #{owner}/#{repo_name} succeeded")
+
+        {:error, reason} ->
+          Logger.warning("Initial push to #{owner}/#{repo_name} skipped: #{reason}")
       end
 
       {:ok, %{owner: owner, repo: repo_name}}

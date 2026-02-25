@@ -31,6 +31,12 @@ defmodule AutoforgeWeb.SettingsLive do
           id="tailscale-config"
           current_user={@current_user}
         />
+
+        <.live_component
+          module={AutoforgeWeb.GoogleServiceAccountComponent}
+          id="google-service-account"
+          current_user={@current_user}
+        />
       </div>
     </Layouts.app>
     """

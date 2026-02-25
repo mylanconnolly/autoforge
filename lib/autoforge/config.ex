@@ -3,5 +3,6 @@ defmodule Autoforge.Config do
 
   resources do
     resource Autoforge.Config.TailscaleConfig
+    resource Autoforge.Config.GoogleServiceAccountConfig
   end
 end
