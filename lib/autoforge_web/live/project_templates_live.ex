@@ -11,27 +11,46 @@ defmodule AutoforgeWeb.ProjectTemplatesLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, page_title: "Templates", query: "")}
+    {:ok, assign(socket, page_title: "Templates", query: "", sort: nil)}
   end
 
   @impl true
   def handle_params(params, _url, socket) do
     query = params["q"] || ""
+    sort = params["sort"]
 
     page_opts =
       AshPhoenix.LiveView.params_to_page_opts(params, default_limit: @limit, count?: true)
 
+    args = %{query: query}
+    args = if sort, do: Map.put(args, :sort, sort), else: args
+
     page =
       ProjectTemplate
-      |> Ash.Query.for_read(:search, %{query: query})
+      |> Ash.Query.for_read(:search, args)
       |> Ash.read!(actor: socket.assigns.current_user, page: page_opts)
 
-    {:noreply, assign(socket, page: page, query: query)}
+    {:noreply, assign(socket, page: page, query: query, sort: sort)}
   end
 
   @impl true
   def handle_event("search", %{"q" => query}, socket) do
     params = if query == "", do: %{}, else: %{"q" => query}
+
+    params =
+      if socket.assigns.sort, do: Map.put(params, "sort", socket.assigns.sort), else: params
+
+    {:noreply, push_patch(socket, to: ~p"/project-templates?#{params}")}
+  end
+
+  def handle_event("sort", %{"column" => column}, socket) do
+    sort = next_sort(column, socket.assigns.sort)
+    params = %{}
+
+    params =
+      if socket.assigns.query != "", do: Map.put(params, "q", socket.assigns.query), else: params
+
+    params = if sort, do: Map.put(params, "sort", sort), else: params
     {:noreply, push_patch(socket, to: ~p"/project-templates?#{params}")}
   end
 
@@ -48,6 +67,9 @@ defmodule AutoforgeWeb.ProjectTemplatesLive do
 
     params =
       if socket.assigns.query != "", do: Map.put(params, "q", socket.assigns.query), else: params
+
+    params =
+      if socket.assigns.sort, do: Map.put(params, "sort", socket.assigns.sort), else: params
 
     {:noreply, push_patch(socket, to: ~p"/project-templates?#{params}")}
   end
@@ -71,6 +93,10 @@ defmodule AutoforgeWeb.ProjectTemplatesLive do
 
     offset = socket.assigns.page.offset || 0
     params = if offset > 0, do: Map.put(params, "offset", to_string(offset)), else: params
+
+    params =
+      if socket.assigns.sort, do: Map.put(params, "sort", socket.assigns.sort), else: params
+
     ~p"/project-templates?#{params}"
   end
 
@@ -115,10 +141,18 @@ defmodule AutoforgeWeb.ProjectTemplatesLive do
         <% else %>
           <.table>
             <.table_head>
-              <:col>Name</:col>
-              <:col>Base Image</:col>
-              <:col>Description</:col>
-              <:col>Created</:col>
+              <:col>
+                <.sort_header column="name" sort={@sort}>Name</.sort_header>
+              </:col>
+              <:col>
+                <.sort_header column="base_image" sort={@sort}>Base Image</.sort_header>
+              </:col>
+              <:col>
+                <.sort_header column="description" sort={@sort}>Description</.sort_header>
+              </:col>
+              <:col>
+                <.sort_header column="inserted_at" sort={@sort}>Created</.sort_header>
+              </:col>
               <:col></:col>
             </.table_head>
             <.table_body>

@@ -15,7 +15,7 @@ defmodule AutoforgeWeb.ProjectsLive do
       Phoenix.PubSub.subscribe(Autoforge.PubSub, "project:updated")
     end
 
-    {:ok, assign(socket, page_title: "Projects", query: "")}
+    {:ok, assign(socket, page_title: "Projects", query: "", sort: nil)}
   end
 
   @impl true
@@ -35,6 +35,21 @@ defmodule AutoforgeWeb.ProjectsLive do
   @impl true
   def handle_event("search", %{"q" => query}, socket) do
     params = if query == "", do: %{}, else: %{"q" => query}
+
+    params =
+      if socket.assigns.sort, do: Map.put(params, "sort", socket.assigns.sort), else: params
+
+    {:noreply, push_patch(socket, to: ~p"/projects?#{params}")}
+  end
+
+  def handle_event("sort", %{"column" => column}, socket) do
+    sort = next_sort(column, socket.assigns.sort)
+    params = %{}
+
+    params =
+      if socket.assigns.query != "", do: Map.put(params, "q", socket.assigns.query), else: params
+
+    params = if sort, do: Map.put(params, "sort", sort), else: params
     {:noreply, push_patch(socket, to: ~p"/projects?#{params}")}
   end
 
@@ -51,6 +66,9 @@ defmodule AutoforgeWeb.ProjectsLive do
 
     params =
       if socket.assigns.query != "", do: Map.put(params, "q", socket.assigns.query), else: params
+
+    params =
+      if socket.assigns.sort, do: Map.put(params, "sort", socket.assigns.sort), else: params
 
     {:noreply, push_patch(socket, to: ~p"/projects?#{params}")}
   end
@@ -93,17 +111,21 @@ defmodule AutoforgeWeb.ProjectsLive do
 
   defp load_page(socket, params) do
     query = params["q"] || ""
+    sort = params["sort"]
 
     page_opts =
       AshPhoenix.LiveView.params_to_page_opts(params, default_limit: @limit, count?: true)
 
+    args = %{query: query}
+    args = if sort, do: Map.put(args, :sort, sort), else: args
+
     page =
       Project
-      |> Ash.Query.for_read(:search, %{query: query})
+      |> Ash.Query.for_read(:search, args)
       |> Ash.Query.load(:project_template)
       |> Ash.read!(actor: socket.assigns.current_user, page: page_opts)
 
-    assign(socket, page: page, query: query)
+    assign(socket, page: page, query: query, sort: sort)
   end
 
   defp build_params(socket) do
@@ -113,7 +135,8 @@ defmodule AutoforgeWeb.ProjectsLive do
       if socket.assigns.query != "", do: Map.put(params, "q", socket.assigns.query), else: params
 
     offset = socket.assigns.page.offset || 0
-    if offset > 0, do: Map.put(params, "offset", to_string(offset)), else: params
+    params = if offset > 0, do: Map.put(params, "offset", to_string(offset)), else: params
+    if socket.assigns.sort, do: Map.put(params, "sort", socket.assigns.sort), else: params
   end
 
   defp find_project(socket, id) do
@@ -174,10 +197,16 @@ defmodule AutoforgeWeb.ProjectsLive do
         <% else %>
           <.table>
             <.table_head>
-              <:col>Name</:col>
+              <:col>
+                <.sort_header column="name" sort={@sort}>Name</.sort_header>
+              </:col>
               <:col>Template</:col>
-              <:col>Status</:col>
-              <:col>Last Activity</:col>
+              <:col>
+                <.sort_header column="state" sort={@sort}>Status</.sort_header>
+              </:col>
+              <:col>
+                <.sort_header column="last_activity_at" sort={@sort}>Last Activity</.sort_header>
+              </:col>
               <:col></:col>
             </.table_head>
             <.table_body>

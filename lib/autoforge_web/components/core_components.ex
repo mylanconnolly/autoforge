@@ -303,6 +303,79 @@ defmodule AutoforgeWeb.CoreComponents do
   end
 
   @doc """
+  Renders a clickable table column header that toggles sort direction.
+
+  Fires a `phx-click="sort"` event with the column name. Displays an icon
+  indicating the current sort direction: up for ascending, down for descending,
+  or a neutral up-down icon when unsorted.
+
+  ## Examples
+
+      <.sort_header column="name" sort={@sort}>Name</.sort_header>
+      <.sort_header column="inserted_at" sort={@sort}>Created</.sort_header>
+  """
+  attr :column, :string, required: true
+  attr :sort, :string, default: nil
+
+  slot :inner_block, required: true
+
+  def sort_header(assigns) do
+    {icon_name, icon_class} =
+      cond do
+        assigns.sort == assigns.column ->
+          {"hero-chevron-up", "w-3.5 h-3.5 text-primary"}
+
+        assigns.sort == "-" <> assigns.column ->
+          {"hero-chevron-down", "w-3.5 h-3.5 text-primary"}
+
+        true ->
+          {"hero-chevron-up-down",
+           "w-3.5 h-3.5 text-base-content/30 group-hover:text-base-content/60"}
+      end
+
+    assigns = assign(assigns, icon_name: icon_name, icon_class: icon_class)
+
+    ~H"""
+    <button
+      type="button"
+      phx-click="sort"
+      phx-value-column={@column}
+      class="group inline-flex items-center gap-1 cursor-pointer select-none hover:text-base-content transition-colors"
+    >
+      {render_slot(@inner_block)}
+      <.icon name={@icon_name} class={@icon_class} />
+    </button>
+    """
+  end
+
+  @doc """
+  Computes the next sort value for a 3-state toggle cycle.
+
+  - No active sort → ascending (`"column"`)
+  - Ascending → descending (`"-column"`)
+  - Descending → cleared (`nil`)
+  - Different column → ascending on new column
+
+  ## Examples
+
+      iex> next_sort("name", nil)
+      "name"
+      iex> next_sort("name", "name")
+      "-name"
+      iex> next_sort("name", "-name")
+      nil
+      iex> next_sort("name", "email")
+      "name"
+  """
+  def next_sort(column, current_sort) do
+    cond do
+      current_sort == column -> "-" <> column
+      current_sort == "-" <> column -> nil
+      true -> column
+    end
+  end
+
+  @doc """
   Translates an error message using gettext.
   """
   def translate_error({msg, opts}) do

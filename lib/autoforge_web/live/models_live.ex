@@ -78,15 +78,15 @@ defmodule AutoforgeWeb.ModelsLive do
 
             <.table>
               <.table_head>
-                <:col><.sort_header col="name" label="Name" /></:col>
-                <:col><.sort_header col="model" label="Model ID" /></:col>
-                <:col><.sort_header col="context" label="Context" /></:col>
-                <:col><.sort_header col="output" label="Max Output" /></:col>
-                <:col><.sort_header col="knowledge" label="Knowledge" /></:col>
-                <:col><.sort_header col="input_cost" label="Input / Output" /></:col>
+                <:col><.client_sort_header col="name" label="Name" /></:col>
+                <:col><.client_sort_header col="model" label="Model ID" /></:col>
+                <:col><.client_sort_header col="context" label="Context" /></:col>
+                <:col><.client_sort_header col="output" label="Max Output" /></:col>
+                <:col><.client_sort_header col="knowledge" label="Knowledge" /></:col>
+                <:col><.client_sort_header col="input_cost" label="Input / Output" /></:col>
                 <:col>Cache R / W</:col>
                 <:col>Capabilities</:col>
-                <:col><.sort_header col="released" label="Released" /></:col>
+                <:col><.client_sort_header col="released" label="Released" /></:col>
               </.table_head>
               <.table_body>
                 <.table_row
@@ -216,7 +216,7 @@ defmodule AutoforgeWeb.ModelsLive do
   attr :col, :string, required: true
   attr :label, :string, required: true
 
-  defp sort_header(assigns) do
+  defp client_sort_header(assigns) do
     ~H"""
     <button
       data-sort-col={@col}
