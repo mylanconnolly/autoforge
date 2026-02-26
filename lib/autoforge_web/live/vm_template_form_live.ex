@@ -72,6 +72,8 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
           all_os_images: [],
           selected_arch: "X86_64",
           loading_images: true,
+          premium_image_values: MapSet.new(),
+          latest_image_values: MapSet.new(),
           pricing: nil,
           price_estimate: nil,
           machine_type_specs: %{},
@@ -302,11 +304,28 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
           %{
             label: "#{label} - #{family}",
             value: "projects/#{project}/global/images/family/#{family}",
-            arch: latest["architecture"] || "X86_64"
+            arch: latest["architecture"] || "X86_64",
+            project: project,
+            created_at: latest["creationTimestamp"]
           }
         end)
       end)
       |> Enum.sort_by(& &1.label)
+
+    premium_values =
+      all_images
+      |> Enum.filter(fn img -> image_license_key(img.value) != nil end)
+      |> Enum.map(& &1.value)
+      |> MapSet.new()
+
+    latest_values =
+      all_images
+      |> Enum.group_by(fn img -> {img.project, img.arch} end)
+      |> Enum.flat_map(fn {_key, imgs} ->
+        newest = Enum.max_by(imgs, & &1.created_at)
+        [newest.value]
+      end)
+      |> MapSet.new()
 
     # Auto-detect architecture from the current form value when editing
     current_image = AshPhoenix.Form.value(socket.assigns.form.source, :os_image)
@@ -324,7 +343,9 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
        all_os_images: all_images,
        os_image_options: options,
        selected_arch: selected_arch,
-       loading_images: false
+       loading_images: false,
+       premium_image_values: premium_values,
+       latest_image_values: latest_values
      )}
   end
 
@@ -704,14 +725,12 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
                   search_input_placeholder="Search machine types..."
                 />
 
-                <.async_select
+                <.os_image_select
                   field={@form[:os_image]}
-                  label="OS Image"
-                  placeholder="Select an OS image..."
                   options={@os_image_options}
                   loading={@loading_images}
-                  searchable
-                  search_input_placeholder="Search OS images..."
+                  premium_values={@premium_image_values}
+                  latest_values={@latest_image_values}
                 />
               </div>
 
@@ -783,6 +802,72 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
         </div>
       </div>
     </Layouts.app>
+    """
+  end
+
+  defp os_image_select(%{loading: true} = assigns) do
+    ~H"""
+    <div>
+      <label class="fieldset-label mb-1">OS Image</label>
+      <div class="flex items-center gap-2 h-10 px-3 bg-base-300 rounded-lg animate-pulse">
+        <span class="loading loading-spinner loading-sm text-base-content/40"></span>
+        <span class="text-sm text-base-content/40">Loading...</span>
+      </div>
+    </div>
+    """
+  end
+
+  defp os_image_select(%{options: nil} = assigns) do
+    ~H"""
+    <div>
+      <label class="fieldset-label mb-1">OS Image</label>
+      <.input field={@field} placeholder="Select an OS image..." />
+    </div>
+    """
+  end
+
+  defp os_image_select(assigns) do
+    ~H"""
+    <div>
+      <.select
+        field={@field}
+        label="OS Image"
+        placeholder="Select an OS image..."
+        options={@options}
+        searchable
+        search_input_placeholder="Search OS images..."
+      >
+        <:option :let={{label, value}}>
+          <div class="flex items-center justify-between gap-2 px-3 py-1.5">
+            <span class="truncate">{label}</span>
+            <div class="flex items-center gap-1 shrink-0">
+              <span
+                :if={value in @latest_values}
+                class="text-success"
+                title="Latest for this distribution"
+              >
+                <.icon name="hero-star-solid" class="w-3.5 h-3.5" />
+              </span>
+              <span
+                :if={value in @premium_values}
+                class="text-warning"
+                title="Premium image (license fee applies)"
+              >
+                <.icon name="hero-currency-dollar-solid" class="w-3.5 h-3.5" />
+              </span>
+            </div>
+          </div>
+        </:option>
+      </.select>
+      <p class="text-xs text-base-content/50 mt-1 flex items-center gap-3">
+        <span class="inline-flex items-center gap-1">
+          <.icon name="hero-star-solid" class="w-3 h-3 text-success" /> Latest
+        </span>
+        <span class="inline-flex items-center gap-1">
+          <.icon name="hero-currency-dollar-solid" class="w-3 h-3 text-warning" /> License fee
+        </span>
+      </p>
+    </div>
     """
   end
 
