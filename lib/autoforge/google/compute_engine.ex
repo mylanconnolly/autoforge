@@ -337,7 +337,7 @@ defmodule Autoforge.Google.ComputeEngine do
         auth: {:bearer, token},
         max_retries: 3,
         retry_delay: &gce_retry_delay/1,
-        retry: &gce_retryable?/1,
+        retry: &gce_retryable?/2,
         receive_timeout: 60_000
       ] ++ opts
 
@@ -365,15 +365,18 @@ defmodule Autoforge.Google.ComputeEngine do
     end
   end
 
-  defp gce_retryable?(%Req.Response{status: 429}), do: true
-  defp gce_retryable?(%Req.Response{status: status}) when status >= 500, do: true
+  defp gce_retryable?(_request, %Req.Response{status: 429}), do: true
+  defp gce_retryable?(_request, %Req.Response{status: status}) when status >= 500, do: true
 
-  defp gce_retryable?(%Req.Response{status: 403, body: %{"error" => %{"message" => msg}}}) do
+  defp gce_retryable?(_request, %Req.Response{
+         status: 403,
+         body: %{"error" => %{"message" => msg}}
+       }) do
     String.contains?(msg, "Rate Limit")
   end
 
-  defp gce_retryable?(%{__exception__: true}), do: true
-  defp gce_retryable?(_), do: false
+  defp gce_retryable?(_request, %{__exception__: true}), do: true
+  defp gce_retryable?(_request, _response), do: false
 
   # Exponential backoff: ~2s, ~4s, ~8s (with jitter)
   defp gce_retry_delay(attempt) do
