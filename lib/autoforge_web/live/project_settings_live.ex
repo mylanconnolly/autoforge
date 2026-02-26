@@ -386,6 +386,7 @@ defmodule AutoforgeWeb.ProjectSettingsLive do
         <.live_component
           module={AutoforgeWeb.ProjectEnvVarsComponent}
           id="env-vars"
+          project={@project}
           project_id={@project.id}
           current_user={@current_user}
         />

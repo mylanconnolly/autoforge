@@ -11,6 +11,7 @@ defmodule AutoforgeWeb.ProjectEnvVarsComponent do
       socket
       |> assign(:current_user, assigns.current_user)
       |> assign(:project_id, assigns.project_id)
+      |> assign(:system_vars, build_system_vars(assigns.project))
       |> load_env_vars()
       |> assign(form: nil, editing_var: nil)
 
@@ -104,6 +105,24 @@ defmodule AutoforgeWeb.ProjectEnvVarsComponent do
     assign(socket, env_vars: env_vars)
   end
 
+  defp build_system_vars(project) do
+    db_host = "db-#{project.id}"
+
+    [
+      {"PORT", "4000", "Application listen port"},
+      {"DATABASE_URL", "postgresql://postgres:***@#{db_host}:5432/#{project.db_name}",
+       "Full PostgreSQL connection string"},
+      {"DATABASE_TEST_URL", "postgresql://postgres:***@#{db_host}:5432/#{project.db_name}_test",
+       "Test database connection string"},
+      {"DB_HOST", db_host, "Database hostname"},
+      {"DB_PORT", "5432", "Database port"},
+      {"DB_NAME", project.db_name, "Database name"},
+      {"DB_TEST_NAME", "#{project.db_name}_test", "Test database name"},
+      {"DB_USER", "postgres", "Database username"},
+      {"DB_PASSWORD", "***", "Database password"}
+    ]
+  end
+
   defp sync_env_to_container(project_id) do
     Task.Supervisor.start_child(Autoforge.TaskSupervisor, fn ->
       Autoforge.Projects.Sandbox.sync_env_vars(project_id)
@@ -132,6 +151,54 @@ defmodule AutoforgeWeb.ProjectEnvVarsComponent do
           Manage environment variables injected into your project containers.
           New terminals and dev server sessions will pick up changes automatically.
         </p>
+      </div>
+
+      <div class="card bg-base-100 border border-base-300 mb-4">
+        <div class="card-body">
+          <div class="flex items-center gap-2 mb-3">
+            <h3 class="text-lg font-medium">System Variables</h3>
+            <span class="badge badge-sm badge-neutral">Read-only</span>
+          </div>
+          <p class="text-sm text-base-content/60 mb-3">
+            These variables are automatically injected into every container session.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="table table-sm">
+              <thead>
+                <tr class="text-base-content/60">
+                  <th>Name</th>
+                  <th>Value</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr :for={{key, value, desc} <- @system_vars} class="hover:bg-base-200/50">
+                  <td>
+                    <div class="flex items-center gap-1.5">
+                      <code class="font-mono text-sm font-medium">{key}</code>
+                      <button
+                        phx-hook="CopyToClipboard"
+                        id={"copy-sysvar-#{key}"}
+                        data-clipboard-text={key}
+                        data-copied-html="<span class='text-success text-xs'>Copied!</span>"
+                        class="p-0.5 rounded hover:bg-base-300 transition-colors text-base-content/40 hover:text-base-content/70"
+                        title={"Copy #{key}"}
+                      >
+                        <.icon name="hero-clipboard-document" class="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="font-mono text-xs text-base-content/60">{value}</span>
+                  </td>
+                  <td>
+                    <span class="text-sm text-base-content/50">{desc}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <%= if @form do %>
