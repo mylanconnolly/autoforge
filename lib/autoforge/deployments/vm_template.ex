@@ -30,6 +30,8 @@ defmodule Autoforge.Deployments.VmTemplate do
         :disk_type,
         :region,
         :zone,
+        :network,
+        :subnetwork,
         :network_tags,
         :labels,
         :startup_script
@@ -46,6 +48,8 @@ defmodule Autoforge.Deployments.VmTemplate do
         :disk_type,
         :region,
         :zone,
+        :network,
+        :subnetwork,
         :network_tags,
         :labels,
         :startup_script
@@ -117,6 +121,18 @@ defmodule Autoforge.Deployments.VmTemplate do
       allow_nil? false
       public? true
       default "us-central1-a"
+      constraints max_length: 255
+    end
+
+    attribute :network, :string do
+      allow_nil? true
+      public? true
+      constraints max_length: 255
+    end
+
+    attribute :subnetwork, :string do
+      allow_nil? true
+      public? true
       constraints max_length: 255
     end
 

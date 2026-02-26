@@ -94,6 +94,37 @@ defmodule Autoforge.Google.ComputeEngine do
   end
 
   @doc """
+  Lists VPC networks available in the given project.
+
+  Returns `{:ok, [%{"name" => ..., "autoCreateSubnetworks" => ..., ...}]}`.
+  """
+  def list_networks(token, project_id) do
+    with {:ok, body} <-
+           gce_req(token, :get, "/compute/v1/projects/#{project_id}/global/networks",
+             params: [maxResults: 500]
+           ) do
+      {:ok, Map.get(body, "items", [])}
+    end
+  end
+
+  @doc """
+  Lists subnetworks available in the given project and region.
+
+  Returns `{:ok, [%{"name" => ..., "network" => ..., "ipCidrRange" => ..., ...}]}`.
+  """
+  def list_subnetworks(token, project_id, region) do
+    with {:ok, body} <-
+           gce_req(
+             token,
+             :get,
+             "/compute/v1/projects/#{project_id}/regions/#{region}/subnetworks",
+             params: [maxResults: 500]
+           ) do
+      {:ok, Map.get(body, "items", [])}
+    end
+  end
+
+  @doc """
   Lists images available in the given public image project.
 
   Returns `{:ok, [%{"name" => ..., "family" => ..., "architecture" => ..., ...}]}`.
@@ -237,16 +268,13 @@ defmodule Autoforge.Google.ComputeEngine do
         }
       ],
       "networkInterfaces" => [
-        %{
-          "network" => "global/networks/default",
-          "accessConfigs" => [
-            %{
-              "type" => "ONE_TO_ONE_NAT",
-              "name" => "External NAT"
-            }
-          ]
-        }
-      ]
+        build_network_interface(vm_template)
+      ],
+      "shieldedInstanceConfig" => %{
+        "enableSecureBoot" => true,
+        "enableVtpm" => true,
+        "enableIntegrityMonitoring" => true
+      }
     }
 
     config =
@@ -273,6 +301,26 @@ defmodule Autoforge.Google.ComputeEngine do
       })
     else
       config
+    end
+  end
+
+  defp build_network_interface(vm_template) do
+    network = Map.get(vm_template, :network) || "default"
+
+    interface = %{
+      "network" => "global/networks/#{network}",
+      "accessConfigs" => [
+        %{
+          "type" => "ONE_TO_ONE_NAT",
+          "name" => "External NAT"
+        }
+      ]
+    }
+
+    case Map.get(vm_template, :subnetwork) do
+      nil -> interface
+      "" -> interface
+      sub -> Map.put(interface, "subnetwork", "regions/#{vm_template.region}/subnetworks/#{sub}")
     end
   end
 

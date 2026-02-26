@@ -10,16 +10,34 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
 
   on_mount {AutoforgeWeb.LiveUserAuth, :live_user_required}
 
-  # Families that only support Hyperdisk (no Persistent Disk)
-  @hyperdisk_only_families ~w(c4a c4d)
-  # Families that only support Persistent Disk (no Hyperdisk)
-  @pd_only_families ~w(e2 n1 c2 c2d t2d t2a a2)
+  # Per-family disk type rules: allowed prefixes and minimum vCPU gates.
+  # Families not listed here allow all disk types (safe default).
+  @family_disk_rules %{
+    # Hyperdisk-only families
+    "c4a" => %{prefixes: ["hyperdisk-"], min_vcpus: %{"hyperdisk-extreme" => 64}},
+    "c4d" => %{prefixes: ["hyperdisk-"], min_vcpus: %{"hyperdisk-extreme" => 64}},
+    # PD-only families
+    "e2" => %{prefixes: ["pd-"]},
+    "n1" => %{prefixes: ["pd-"]},
+    "c2" => %{prefixes: ["pd-"]},
+    "c2d" => %{prefixes: ["pd-"]},
+    "t2d" => %{prefixes: ["pd-"]},
+    "t2a" => %{prefixes: ["pd-"]},
+    "a2" => %{prefixes: ["pd-"]},
+    # Families supporting both, with hyperdisk-extreme vCPU gates
+    "c3" => %{prefixes: ["pd-", "hyperdisk-"], min_vcpus: %{"hyperdisk-extreme" => 88}},
+    "c3d" => %{prefixes: ["pd-", "hyperdisk-"], min_vcpus: %{"hyperdisk-extreme" => 60}},
+    "n2" => %{prefixes: ["pd-", "hyperdisk-"], min_vcpus: %{"hyperdisk-extreme" => 80}},
+    "n2d" => %{prefixes: ["pd-", "hyperdisk-"], min_vcpus: %{"hyperdisk-extreme" => 64}},
+    "c4" => %{prefixes: ["pd-", "hyperdisk-"], min_vcpus: %{"hyperdisk-extreme" => 96}},
+    "m3" => %{prefixes: ["pd-", "hyperdisk-"], min_vcpus: %{"hyperdisk-extreme" => 128}}
+  }
 
   @impl true
   def mount(params, _session, socket) do
     user = socket.assigns.current_user
 
-    {form, editing?, template_id, current_region, current_zone} =
+    {form, editing?, template_id, current_region, current_zone, current_network} =
       case params do
         %{"id" => id} ->
           template =
@@ -33,9 +51,9 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
               |> AshPhoenix.Form.for_update(:update, actor: user)
               |> to_form()
 
-            {form, true, id, template.region, template.zone}
+            {form, true, id, template.region, template.zone, template.network}
           else
-            {nil, false, nil, nil, nil}
+            {nil, false, nil, nil, nil, nil}
           end
 
         _ ->
@@ -44,7 +62,7 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
             |> AshPhoenix.Form.for_create(:create, actor: user)
             |> to_form()
 
-          {form, false, nil, "us-central1", "us-central1-a"}
+          {form, false, nil, "us-central1", "us-central1-a", nil}
       end
 
     if is_nil(form) do
@@ -62,6 +80,7 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
           template_id: template_id,
           current_region: current_region,
           current_zone: current_zone,
+          current_network: current_network,
           # Loading states
           region_options: nil,
           region_base_options: nil,
@@ -87,6 +106,15 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
           loading_zones: true,
           loading_machine_types: true,
           loading_disk_types: true,
+          # Network / subnetwork
+          network_options: nil,
+          network_base_options: nil,
+          all_networks: [],
+          subnetwork_options: nil,
+          subnetwork_base_options: nil,
+          all_subnetworks: [],
+          loading_networks: true,
+          loading_subnetworks: true,
           api_error: nil
         )
         |> maybe_fetch_gce_options()
@@ -103,11 +131,13 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
         |> start_async(:fetch_regions_and_zones, fn ->
           regions_task = Task.async(fn -> ComputeEngine.list_regions(token, project_id) end)
           zones_task = Task.async(fn -> ComputeEngine.list_zones(token, project_id) end)
+          networks_task = Task.async(fn -> ComputeEngine.list_networks(token, project_id) end)
 
           regions_result = Task.await(regions_task, 15_000)
           zones_result = Task.await(zones_task, 15_000)
+          networks_result = Task.await(networks_task, 15_000)
 
-          {regions_result, zones_result}
+          {regions_result, zones_result, networks_result}
         end)
         |> start_async(:fetch_os_images, fn -> fetch_all_os_images(token) end)
         |> start_async(:fetch_pricing, fn -> Pricing.get_or_fetch(token) end)
@@ -119,6 +149,8 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
           loading_machine_types: false,
           loading_disk_types: false,
           loading_images: false,
+          loading_networks: false,
+          loading_subnetworks: false,
           api_error: reason
         )
     end
@@ -150,7 +182,11 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
   end
 
   @impl true
-  def handle_async(:fetch_regions_and_zones, {:ok, {regions_result, zones_result}}, socket) do
+  def handle_async(
+        :fetch_regions_and_zones,
+        {:ok, {regions_result, zones_result, networks_result}},
+        socket
+      ) do
     case {regions_result, zones_result} do
       {{:ok, regions}, {:ok, zones}} ->
         region_options =
@@ -184,6 +220,26 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
             do: current_zone,
             else: List.first(zone_values) || current_zone
 
+        # Process networks
+        {all_networks, network_options} =
+          case networks_result do
+            {:ok, nets} ->
+              sorted =
+                nets
+                |> Enum.sort_by(fn n -> n["name"] end)
+
+              options =
+                Enum.map(sorted, fn n ->
+                  mode = if n["autoCreateSubnetworks"], do: "auto", else: "custom"
+                  {"#{n["name"]} (#{mode})", n["name"]}
+                end)
+
+              {sorted, options}
+
+            {:error, _} ->
+              {[], nil}
+          end
+
         socket =
           socket
           |> assign(
@@ -194,9 +250,14 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
             regions_to_zones: regions_to_zones,
             loading_regions: false,
             loading_zones: false,
-            current_zone: current_zone
+            current_zone: current_zone,
+            all_networks: all_networks,
+            network_options: network_options,
+            network_base_options: network_options,
+            loading_networks: false
           )
           |> fetch_zone_resources(current_zone)
+          |> fetch_subnetworks(current_region)
 
         {:noreply, socket}
 
@@ -265,7 +326,8 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
     current_machine_type =
       AshPhoenix.Form.value(socket.assigns.form.source, :machine_type)
 
-    filtered_disk_types = filter_disk_types_for_machine(disk_type_options, current_machine_type)
+    filtered_disk_types =
+      filter_disk_types_for_machine(disk_type_options, current_machine_type, machine_type_specs)
 
     {:noreply,
      socket
@@ -291,6 +353,48 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
        loading_machine_types: false,
        loading_disk_types: false,
        api_error: "Failed to fetch zone resources: #{inspect(reason)}"
+     )}
+  end
+
+  def handle_async(:fetch_subnetworks, {:ok, {:ok, subnetworks}}, socket) do
+    current_network = socket.assigns.current_network
+
+    all_subnetworks =
+      subnetworks
+      |> Enum.sort_by(fn s -> s["name"] end)
+
+    options = build_subnetwork_options(all_subnetworks, current_network)
+
+    {:noreply,
+     assign(socket,
+       all_subnetworks: all_subnetworks,
+       subnetwork_options: options,
+       subnetwork_base_options: options,
+       loading_subnetworks: false
+     )}
+  end
+
+  def handle_async(:fetch_subnetworks, {:ok, {:error, reason}}, socket) do
+    Logger.warning("Failed to fetch subnetworks: #{reason}")
+
+    {:noreply,
+     assign(socket,
+       all_subnetworks: [],
+       subnetwork_options: nil,
+       subnetwork_base_options: nil,
+       loading_subnetworks: false
+     )}
+  end
+
+  def handle_async(:fetch_subnetworks, {:exit, reason}, socket) do
+    Logger.warning("Subnetwork fetch crashed: #{inspect(reason)}")
+
+    {:noreply,
+     assign(socket,
+       all_subnetworks: [],
+       subnetwork_options: nil,
+       subnetwork_base_options: nil,
+       loading_subnetworks: false
      )}
   end
 
@@ -427,22 +531,35 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
 
   defp machine_family(_), do: nil
 
-  defp filter_disk_types_for_machine(nil, _machine_type), do: nil
+  defp filter_disk_types_for_machine(nil, _machine_type, _specs), do: nil
 
-  defp filter_disk_types_for_machine(all_options, machine_type) do
+  defp filter_disk_types_for_machine(all_options, machine_type, specs) do
     family = machine_family(machine_type)
+    vcpus = get_in(specs, [machine_type, :vcpus])
 
-    cond do
-      family in @hyperdisk_only_families ->
-        Enum.filter(all_options, fn {_label, value} ->
-          String.starts_with?(value, "hyperdisk-")
-        end)
-
-      family in @pd_only_families ->
-        Enum.filter(all_options, fn {_label, value} -> String.starts_with?(value, "pd-") end)
-
-      true ->
+    case Map.get(@family_disk_rules, family) do
+      nil ->
         all_options
+
+      %{prefixes: prefixes} = rules ->
+        min_vcpus = Map.get(rules, :min_vcpus, %{})
+
+        Enum.filter(all_options, fn {_label, value} ->
+          prefix_allowed?(value, prefixes) and vcpu_allowed?(value, vcpus, min_vcpus)
+        end)
+    end
+  end
+
+  defp prefix_allowed?(value, prefixes) do
+    Enum.any?(prefixes, &String.starts_with?(value, &1))
+  end
+
+  defp vcpu_allowed?(_value, nil, _min_vcpus), do: true
+
+  defp vcpu_allowed?(value, vcpus, min_vcpus) do
+    case Map.get(min_vcpus, value) do
+      nil -> true
+      min -> vcpus >= min
     end
   end
 
@@ -600,6 +717,19 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
 
   defp fetch_zone_resources(socket, _zone), do: socket
 
+  defp fetch_subnetworks(socket, region) when is_binary(region) and region != "" do
+    token = socket.assigns.token
+    project_id = socket.assigns.project_id
+
+    socket
+    |> assign(loading_subnetworks: true)
+    |> start_async(:fetch_subnetworks, fn ->
+      ComputeEngine.list_subnetworks(token, project_id, region)
+    end)
+  end
+
+  defp fetch_subnetworks(socket, _region), do: socket
+
   defp handle_api_error(socket, reason) do
     assign(socket,
       loading_regions: false,
@@ -607,6 +737,8 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
       loading_machine_types: false,
       loading_disk_types: false,
       loading_images: false,
+      loading_networks: false,
+      loading_subnetworks: false,
       api_error: to_string(reason)
     )
   end
@@ -615,6 +747,21 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
     regions_to_zones
     |> Map.get(region, [])
     |> Enum.map(fn z -> {z, z} end)
+  end
+
+  defp build_subnetwork_options(all_subnetworks, network_name) do
+    filtered =
+      if network_name do
+        Enum.filter(all_subnetworks, fn s ->
+          s["network"] |> String.split("/") |> List.last() == network_name
+        end)
+      else
+        all_subnetworks
+      end
+
+    Enum.map(filtered, fn s ->
+      {"#{s["name"]} (#{s["ipCidrRange"]})", s["name"]}
+    end)
   end
 
   @impl true
@@ -642,6 +789,15 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
     {:noreply, search_field(socket, q, :os_image, :os_image_base_options, :os_image_options)}
   end
 
+  def handle_event("search_networks", %{"query" => q}, socket) do
+    {:noreply, search_field(socket, q, :network, :network_base_options, :network_options)}
+  end
+
+  def handle_event("search_subnetworks", %{"query" => q}, socket) do
+    {:noreply,
+     search_field(socket, q, :subnetwork, :subnetwork_base_options, :subnetwork_options)}
+  end
+
   def handle_event("search_regions", %{"query" => q}, socket) do
     {:noreply, search_field(socket, q, :region, :region_base_options, :region_options)}
   end
@@ -655,6 +811,8 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
     old_region = socket.assigns.current_region
     new_zone = params["zone"]
     old_zone = socket.assigns.current_zone
+    new_network = params["network"]
+    old_network = socket.assigns.current_network
 
     {params, socket} =
       cond do
@@ -667,7 +825,11 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
               do: new_zone,
               else: List.first(zone_values)
 
-          params = Map.put(params, "zone", resolved_zone)
+          # Clear subnetwork when region changes (subnetworks are per-region)
+          params =
+            params
+            |> Map.put("zone", resolved_zone)
+            |> Map.put("subnetwork", nil)
 
           socket =
             socket
@@ -678,6 +840,7 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
               current_zone: resolved_zone
             )
             |> fetch_zone_resources(resolved_zone)
+            |> fetch_subnetworks(new_region)
 
           {params, socket}
 
@@ -693,6 +856,33 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
           {params, socket}
       end
 
+    # Re-filter subnetworks when network changes
+    {params, socket} =
+      if new_network != old_network do
+        options = build_subnetwork_options(socket.assigns.all_subnetworks, new_network)
+
+        # Clear subnetwork if the current selection is not in the new list
+        sub_values = Enum.map(options, fn {_l, v} -> v end)
+        current_sub = params["subnetwork"]
+
+        params =
+          if current_sub not in sub_values,
+            do: Map.put(params, "subnetwork", nil),
+            else: params
+
+        socket =
+          socket
+          |> assign(
+            current_network: new_network,
+            subnetwork_options: options,
+            subnetwork_base_options: options
+          )
+
+        {params, socket}
+      else
+        {params, socket}
+      end
+
     form =
       socket.assigns.form.source
       |> AshPhoenix.Form.validate(params)
@@ -702,7 +892,8 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
     disk_type_options =
       filter_disk_types_for_machine(
         socket.assigns.all_disk_type_options,
-        params["machine_type"]
+        params["machine_type"],
+        socket.assigns.machine_type_specs
       )
 
     {:noreply,
@@ -880,6 +1071,30 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
                   searchable
                   search_input_placeholder="Search zones..."
                   on_search="search_zones"
+                />
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <.async_select
+                  field={@form[:network]}
+                  label="Network"
+                  placeholder="Select a VPC network..."
+                  options={@network_options}
+                  loading={@loading_networks}
+                  searchable
+                  search_input_placeholder="Search networks..."
+                  on_search="search_networks"
+                />
+
+                <.async_select
+                  field={@form[:subnetwork]}
+                  label="Subnetwork"
+                  placeholder="Select a subnetwork..."
+                  options={@subnetwork_options}
+                  loading={@loading_subnetworks}
+                  searchable
+                  search_input_placeholder="Search subnetworks..."
+                  on_search="search_subnetworks"
                 />
               </div>
 
