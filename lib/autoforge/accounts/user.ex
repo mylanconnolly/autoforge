@@ -30,6 +30,13 @@ defmodule Autoforge.Accounts.User do
         sender Autoforge.Accounts.User.Senders.SendMagicLinkEmail
       end
 
+      auth0 :auth0 do
+        client_id Autoforge.Secrets
+        redirect_uri Autoforge.Secrets
+        client_secret Autoforge.Secrets
+        base_url Autoforge.Secrets
+      end
+
       remember_me :remember_me
 
       api_key do
@@ -103,6 +110,22 @@ defmodule Autoforge.Accounts.User do
     end
 
     destroy :destroy do
+    end
+
+    create :register_with_auth0 do
+      argument :user_info, :map, allow_nil?: false
+      argument :oauth_tokens, :map, allow_nil?: false
+      upsert? true
+      upsert_identity :unique_email
+
+      # Required if you have token generation enabled.
+      change AshAuthentication.GenerateTokenChange
+
+      # Required if you have the `identity_resource` configuration enabled.
+      change AshAuthentication.Strategy.OAuth2.IdentityChange
+
+      # Perform the actual registration / sign-in logic
+      change {Autoforge.Accounts.Changes.RegisterUser, []}
     end
 
     create :sign_in_with_magic_link do

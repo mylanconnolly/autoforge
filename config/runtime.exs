@@ -30,6 +30,12 @@ database_url =
     For example: ecto://USER:PASS@HOST/DATABASE
     """
 
+config :autoforge, :auth0,
+  client_id: System.get_env("AUTH0_CLIENT_ID"),
+  client_secret: System.get_env("AUTH0_CLIENT_SECRET"),
+  redirect_uri: System.get_env("AUTH0_REDIRECT_URI"),
+  base_url: System.get_env("AUTH0_BASE_URL")
+
 maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
 config :autoforge, Autoforge.Repo,
