@@ -8,6 +8,29 @@ defmodule AutoforgeWeb.SettingsLive do
     {:ok, assign(socket, page_title: "Settings")}
   end
 
+  attr :title, :string, required: true
+  attr :subtitle, :string, default: nil
+  attr :open, :boolean, default: false
+  slot :inner_block, required: true
+
+  defp settings_section(assigns) do
+    ~H"""
+    <details class="group mt-8" {if @open, do: [open: "open"], else: []}>
+      <summary class="flex items-center justify-between cursor-pointer list-none select-none">
+        <div>
+          <h2 class="text-xl font-semibold tracking-tight">{@title}</h2>
+          <p :if={@subtitle} class="mt-1 text-sm text-base-content/70">{@subtitle}</p>
+        </div>
+        <.icon
+          name="hero-chevron-right"
+          class="w-5 h-5 text-base-content/40 transition-transform group-open:rotate-90"
+        />
+      </summary>
+      {render_slot(@inner_block)}
+    </details>
+    """
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -20,29 +43,61 @@ defmodule AutoforgeWeb.SettingsLive do
           </p>
         </div>
 
-        <.live_component
-          module={AutoforgeWeb.LlmProviderKeysComponent}
-          id="llm-keys"
-          current_user={@current_user}
-        />
+        <.settings_section
+          title="LLM Provider Keys"
+          subtitle="Manage API keys for LLM providers."
+          open
+        >
+          <.live_component
+            module={AutoforgeWeb.LlmProviderKeysComponent}
+            id="llm-keys"
+            current_user={@current_user}
+          />
+        </.settings_section>
 
-        <.live_component
-          module={AutoforgeWeb.TailscaleConfigComponent}
-          id="tailscale-config"
-          current_user={@current_user}
-        />
+        <.settings_section
+          title="Tailscale Integration"
+          subtitle="Expose project dev servers via HTTPS on your tailnet."
+        >
+          <.live_component
+            module={AutoforgeWeb.TailscaleConfigComponent}
+            id="tailscale-config"
+            current_user={@current_user}
+          />
+        </.settings_section>
 
-        <.live_component
-          module={AutoforgeWeb.GoogleServiceAccountComponent}
-          id="google-service-account"
-          current_user={@current_user}
-        />
+        <.settings_section
+          title="Google Service Accounts"
+          subtitle="Enable bots to use Google Workspace tools via domain-wide delegation."
+        >
+          <.live_component
+            module={AutoforgeWeb.GoogleServiceAccountComponent}
+            id="google-service-account"
+            current_user={@current_user}
+          />
+        </.settings_section>
 
-        <.live_component
-          module={AutoforgeWeb.GcsStorageConfigComponent}
-          id="gcs-storage-config"
-          current_user={@current_user}
-        />
+        <.settings_section
+          title="GCS Storage"
+          subtitle="Configure Google Cloud Storage buckets for file uploads and attachments."
+        >
+          <.live_component
+            module={AutoforgeWeb.GcsStorageConfigComponent}
+            id="gcs-storage-config"
+            current_user={@current_user}
+          />
+        </.settings_section>
+
+        <.settings_section
+          title="Connecteam API Keys"
+          subtitle="Manage API keys for Connecteam scheduling, jobs, and onboarding tools."
+        >
+          <.live_component
+            module={AutoforgeWeb.ConnecteamApiKeyComponent}
+            id="connecteam-api-keys"
+            current_user={@current_user}
+          />
+        </.settings_section>
       </div>
     </Layouts.app>
     """

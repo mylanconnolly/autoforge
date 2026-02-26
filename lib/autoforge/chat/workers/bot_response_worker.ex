@@ -79,6 +79,7 @@ defmodule Autoforge.Chat.Workers.BotResponseWorker do
     tools = inject_delegate_context(tools, bot, conversation, participant_ids)
     tools = inject_github_context(tools, conversation)
     tools = inject_google_workspace_context(tools, conversation)
+    tools = inject_connecteam_context(tools)
 
     base_opts =
       [api_key: api_key, system_prompt: system_prompt]
@@ -735,6 +736,159 @@ defmodule Autoforge.Chat.Workers.BotResponseWorker do
 
         _ ->
           {:error, "Unknown Google Workspace tool: #{tool_name}"}
+      end
+
+    case result do
+      {:ok, data} when is_map(data) or is_list(data) -> {:ok, Jason.encode!(data)}
+      {:ok, data} when is_binary(data) -> {:ok, data}
+      :ok -> {:ok, "Success"}
+      {:error, reason} -> {:error, to_string(reason)}
+    end
+  end
+
+  # ── Connecteam Context ────────────────────────────────────────────────
+
+  defp inject_connecteam_context(tools) do
+    ct_tool_names =
+      tools
+      |> Enum.filter(&String.starts_with?(&1.name, "connecteam_"))
+      |> Enum.map(& &1.name)
+
+    if ct_tool_names == [] do
+      tools
+    else
+      configs = load_connecteam_configs(ct_tool_names)
+
+      Enum.map(tools, fn tool ->
+        case Map.get(configs, tool.name) do
+          nil ->
+            tool
+
+          {api_key, region} ->
+            %{tool | callback: build_connecteam_callback(tool.name, api_key, region)}
+        end
+      end)
+    end
+  end
+
+  defp load_connecteam_configs(tool_names) do
+    alias Autoforge.Ai.Tool, as: ToolResource
+    alias Autoforge.Config.ConnecteamApiKeyConfig
+
+    db_tools =
+      ToolResource
+      |> Ash.Query.filter(name in ^tool_names)
+      |> Ash.read!(authorize?: false)
+
+    db_tools
+    |> Enum.filter(fn t ->
+      match?(%Ash.Union{type: :connecteam}, t.config)
+    end)
+    |> Enum.reduce(%{}, fn tool, acc ->
+      %Ash.Union{value: config} = tool.config
+      ct_id = config.connecteam_api_key_config_id
+
+      case Ash.get(ConnecteamApiKeyConfig, ct_id, authorize?: false) do
+        {:ok, ct_config} ->
+          if ct_config.enabled do
+            Map.put(acc, tool.name, {ct_config.api_key, ct_config.region})
+          else
+            Logger.warning("Connecteam API key disabled for tool #{tool.name}")
+            acc
+          end
+
+        _ ->
+          Logger.warning("Connecteam API key config not found for tool #{tool.name}")
+          acc
+      end
+    end)
+  end
+
+  defp build_connecteam_callback(tool_name, api_key, region) do
+    fn args -> execute_connecteam_tool(tool_name, args, api_key, region) end
+  end
+
+  defp execute_connecteam_tool(tool_name, args, api_key, region) do
+    alias Autoforge.Connecteam.Client
+
+    result =
+      case tool_name do
+        "connecteam_list_users" ->
+          opts = []
+          opts = if args[:limit], do: Keyword.put(opts, :limit, args.limit), else: opts
+          opts = if args[:offset], do: Keyword.put(opts, :offset, args.offset), else: opts
+          Client.list_users(api_key, region, opts)
+
+        "connecteam_create_user" ->
+          attrs = %{
+            "email" => args.email,
+            "firstName" => args.first_name,
+            "lastName" => args.last_name
+          }
+
+          attrs = if args[:phone], do: Map.put(attrs, "phone", args.phone), else: attrs
+          attrs = if args[:role], do: Map.put(attrs, "role", args.role), else: attrs
+          Client.create_user(api_key, region, attrs)
+
+        "connecteam_list_schedulers" ->
+          Client.list_schedulers(api_key, region)
+
+        "connecteam_list_shifts" ->
+          opts = []
+
+          opts =
+            if args[:start_date], do: Keyword.put(opts, :start_date, args.start_date), else: opts
+
+          opts = if args[:end_date], do: Keyword.put(opts, :end_date, args.end_date), else: opts
+          opts = if args[:limit], do: Keyword.put(opts, :limit, args.limit), else: opts
+          opts = if args[:offset], do: Keyword.put(opts, :offset, args.offset), else: opts
+          Client.list_shifts(api_key, region, args.scheduler_id, opts)
+
+        "connecteam_get_shift" ->
+          Client.get_shift(api_key, region, args.scheduler_id, args.shift_id)
+
+        "connecteam_create_shift" ->
+          attrs = %{
+            "title" => args.title,
+            "startTime" => args.start_time,
+            "endTime" => args.end_time
+          }
+
+          attrs =
+            if args[:user_ids], do: Map.put(attrs, "userIds", args.user_ids), else: attrs
+
+          Client.create_shift(api_key, region, args.scheduler_id, attrs)
+
+        "connecteam_delete_shift" ->
+          Client.delete_shift(api_key, region, args.scheduler_id, args.shift_id)
+
+        "connecteam_get_shift_layers" ->
+          Client.get_shift_layers(api_key, region, args.scheduler_id)
+
+        "connecteam_list_jobs" ->
+          opts = []
+          opts = if args[:limit], do: Keyword.put(opts, :limit, args.limit), else: opts
+          opts = if args[:offset], do: Keyword.put(opts, :offset, args.offset), else: opts
+          Client.list_jobs(api_key, region, opts)
+
+        "connecteam_list_onboarding_packs" ->
+          opts = []
+          opts = if args[:limit], do: Keyword.put(opts, :limit, args.limit), else: opts
+          opts = if args[:offset], do: Keyword.put(opts, :offset, args.offset), else: opts
+          Client.list_onboarding_packs(api_key, region, opts)
+
+        "connecteam_get_pack_assignments" ->
+          opts = []
+          opts = if args[:limit], do: Keyword.put(opts, :limit, args.limit), else: opts
+          opts = if args[:offset], do: Keyword.put(opts, :offset, args.offset), else: opts
+          Client.get_pack_assignments(api_key, region, args.pack_id, opts)
+
+        "connecteam_assign_users_to_pack" ->
+          attrs = %{"userIds" => args.user_ids}
+          Client.assign_users_to_pack(api_key, region, args.pack_id, attrs)
+
+        _ ->
+          {:error, "Unknown Connecteam tool: #{tool_name}"}
       end
 
     case result do

@@ -115,14 +115,8 @@ defmodule AutoforgeWeb.GcsStorageConfigComponent do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mt-8">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h2 class="text-xl font-semibold tracking-tight">GCS Storage</h2>
-          <p class="mt-1 text-sm text-base-content/70">
-            Configure Google Cloud Storage buckets for file uploads and attachments.
-          </p>
-        </div>
+    <div>
+      <div class="flex justify-end mb-4">
         <.button
           :if={@form == nil}
           phx-click="new"

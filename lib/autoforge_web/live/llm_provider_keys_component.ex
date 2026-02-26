@@ -105,13 +105,7 @@ defmodule AutoforgeWeb.LlmProviderKeysComponent do
   def render(assigns) do
     ~H"""
     <div>
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h2 class="text-xl font-semibold tracking-tight">LLM Provider Keys</h2>
-          <p class="mt-1 text-sm text-base-content/70">
-            Manage API keys for LLM providers.
-          </p>
-        </div>
+      <div class="flex justify-end mb-4">
         <.button
           :if={@form == nil}
           phx-click="new"

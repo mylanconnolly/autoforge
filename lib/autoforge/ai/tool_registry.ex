@@ -479,6 +479,139 @@ defmodule Autoforge.Ai.ToolRegistry do
             ]
           ],
           callback: &google_workspace_not_available/1
+        ),
+
+      # ── Connecteam Tools ──────────────────────────────────────────────────
+
+      "connecteam_list_users" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_list_users",
+          description: "List users in the Connecteam account.",
+          parameter_schema: [
+            limit: [type: :integer, doc: "Maximum number of users to return"],
+            offset: [type: :integer, doc: "Offset for pagination"]
+          ],
+          callback: &connecteam_not_available/1
+        ),
+      "connecteam_create_user" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_create_user",
+          description: "Create a new user in Connecteam.",
+          parameter_schema: [
+            email: [type: :string, required: true, doc: "User email address"],
+            first_name: [type: :string, required: true, doc: "User first name"],
+            last_name: [type: :string, required: true, doc: "User last name"],
+            phone: [type: :string, doc: "User phone number"],
+            role: [type: :string, doc: "User role"]
+          ],
+          callback: &connecteam_not_available/1
+        ),
+      "connecteam_list_schedulers" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_list_schedulers",
+          description: "List all schedulers in the Connecteam account.",
+          parameter_schema: [],
+          callback: &connecteam_not_available/1
+        ),
+      "connecteam_list_shifts" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_list_shifts",
+          description: "List shifts for a specific scheduler.",
+          parameter_schema: [
+            scheduler_id: [type: :string, required: true, doc: "Scheduler ID"],
+            start_date: [type: :string, doc: "Start date filter (ISO8601)"],
+            end_date: [type: :string, doc: "End date filter (ISO8601)"],
+            limit: [type: :integer, doc: "Maximum number of shifts to return"],
+            offset: [type: :integer, doc: "Offset for pagination"]
+          ],
+          callback: &connecteam_not_available/1
+        ),
+      "connecteam_get_shift" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_get_shift",
+          description: "Get details of a specific shift.",
+          parameter_schema: [
+            scheduler_id: [type: :string, required: true, doc: "Scheduler ID"],
+            shift_id: [type: :string, required: true, doc: "Shift ID"]
+          ],
+          callback: &connecteam_not_available/1
+        ),
+      "connecteam_create_shift" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_create_shift",
+          description: "Create a new shift in a scheduler.",
+          parameter_schema: [
+            scheduler_id: [type: :string, required: true, doc: "Scheduler ID"],
+            title: [type: :string, required: true, doc: "Shift title"],
+            start_time: [type: :string, required: true, doc: "Start time (ISO8601 datetime)"],
+            end_time: [type: :string, required: true, doc: "End time (ISO8601 datetime)"],
+            user_ids: [type: {:list, :string}, doc: "List of user IDs to assign to the shift"]
+          ],
+          callback: &connecteam_not_available/1
+        ),
+      "connecteam_delete_shift" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_delete_shift",
+          description: "Delete a shift from a scheduler.",
+          parameter_schema: [
+            scheduler_id: [type: :string, required: true, doc: "Scheduler ID"],
+            shift_id: [type: :string, required: true, doc: "Shift ID"]
+          ],
+          callback: &connecteam_not_available/1
+        ),
+      "connecteam_get_shift_layers" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_get_shift_layers",
+          description: "Get shift layers for a scheduler.",
+          parameter_schema: [
+            scheduler_id: [type: :string, required: true, doc: "Scheduler ID"]
+          ],
+          callback: &connecteam_not_available/1
+        ),
+      "connecteam_list_jobs" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_list_jobs",
+          description: "List jobs in the Connecteam account.",
+          parameter_schema: [
+            limit: [type: :integer, doc: "Maximum number of jobs to return"],
+            offset: [type: :integer, doc: "Offset for pagination"]
+          ],
+          callback: &connecteam_not_available/1
+        ),
+      "connecteam_list_onboarding_packs" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_list_onboarding_packs",
+          description: "List onboarding packs in the Connecteam account.",
+          parameter_schema: [
+            limit: [type: :integer, doc: "Maximum number of packs to return"],
+            offset: [type: :integer, doc: "Offset for pagination"]
+          ],
+          callback: &connecteam_not_available/1
+        ),
+      "connecteam_get_pack_assignments" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_get_pack_assignments",
+          description: "Get user assignments for a specific onboarding pack.",
+          parameter_schema: [
+            pack_id: [type: :string, required: true, doc: "Onboarding pack ID"],
+            limit: [type: :integer, doc: "Maximum number of assignments to return"],
+            offset: [type: :integer, doc: "Offset for pagination"]
+          ],
+          callback: &connecteam_not_available/1
+        ),
+      "connecteam_assign_users_to_pack" =>
+        ReqLLM.Tool.new!(
+          name: "connecteam_assign_users_to_pack",
+          description: "Assign users to an onboarding pack.",
+          parameter_schema: [
+            pack_id: [type: :string, required: true, doc: "Onboarding pack ID"],
+            user_ids: [
+              type: {:list, :string},
+              required: true,
+              doc: "List of user IDs to assign"
+            ]
+          ],
+          callback: &connecteam_not_available/1
         )
     }
   end
@@ -490,6 +623,10 @@ defmodule Autoforge.Ai.ToolRegistry do
   defp google_workspace_not_available(_args) do
     {:error,
      "Google Workspace not configured — assign a tool config with a service account and delegate email"}
+  end
+
+  defp connecteam_not_available(_args) do
+    {:error, "Connecteam not configured — assign a tool config with an API key in tool settings"}
   end
 
   defp fetch_url(url, redirects_remaining) do

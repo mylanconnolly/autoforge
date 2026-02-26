@@ -97,14 +97,8 @@ defmodule AutoforgeWeb.TailscaleConfigComponent do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mt-8">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h2 class="text-xl font-semibold tracking-tight">Tailscale Integration</h2>
-          <p class="mt-1 text-sm text-base-content/70">
-            Expose project dev servers via HTTPS on your tailnet.
-          </p>
-        </div>
+    <div>
+      <div class="flex justify-end mb-4">
         <.button
           :if={@form == nil && @config == nil}
           phx-click="new"

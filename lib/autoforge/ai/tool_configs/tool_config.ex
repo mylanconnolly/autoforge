@@ -7,6 +7,11 @@ defmodule Autoforge.Ai.ToolConfigs.ToolConfig do
           type: Autoforge.Ai.ToolConfigs.GoogleWorkspaceConfig,
           tag: :type,
           tag_value: "google_workspace"
+        ],
+        connecteam: [
+          type: Autoforge.Ai.ToolConfigs.ConnecteamConfig,
+          tag: :type,
+          tag_value: "connecteam"
         ]
       ]
     ]

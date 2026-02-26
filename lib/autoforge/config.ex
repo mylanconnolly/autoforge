@@ -5,5 +5,6 @@ defmodule Autoforge.Config do
     resource Autoforge.Config.TailscaleConfig
     resource Autoforge.Config.GoogleServiceAccountConfig
     resource Autoforge.Config.GcsStorageConfig
+    resource Autoforge.Config.ConnecteamApiKeyConfig
   end
 end

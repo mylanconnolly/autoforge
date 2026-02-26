@@ -1,7 +1,7 @@
-defmodule AutoforgeWeb.GoogleServiceAccountComponent do
+defmodule AutoforgeWeb.ConnecteamApiKeyComponent do
   use AutoforgeWeb, :live_component
 
-  alias Autoforge.Config.GoogleServiceAccountConfig
+  alias Autoforge.Config.ConnecteamApiKeyConfig
 
   require Ash.Query
 
@@ -19,7 +19,7 @@ defmodule AutoforgeWeb.GoogleServiceAccountComponent do
   @impl true
   def handle_event("new", _params, socket) do
     form =
-      GoogleServiceAccountConfig
+      ConnecteamApiKeyConfig
       |> AshPhoenix.Form.for_create(:create, actor: socket.assigns.current_user)
       |> to_form()
 
@@ -82,15 +82,26 @@ defmodule AutoforgeWeb.GoogleServiceAccountComponent do
 
   defp load_configs(socket) do
     configs =
-      GoogleServiceAccountConfig
+      ConnecteamApiKeyConfig
       |> Ash.Query.sort(label: :asc)
       |> Ash.read!(actor: socket.assigns.current_user)
 
     assign(socket, configs: configs)
   end
 
+  @region_options [
+    {"Global", "global"},
+    {"Australia", "australia"}
+  ]
+
+  defp region_label(:global), do: "Global"
+  defp region_label(:australia), do: "Australia"
+  defp region_label(_), do: "Global"
+
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, :region_options, @region_options)
+
     ~H"""
     <div>
       <div class="flex justify-end mb-4">
@@ -102,7 +113,7 @@ defmodule AutoforgeWeb.GoogleServiceAccountComponent do
           color="primary"
           size="sm"
         >
-          <.icon name="hero-plus" class="w-4 h-4 mr-1" /> Add Account
+          <.icon name="hero-plus" class="w-4 h-4 mr-1" /> Add Key
         </.button>
       </div>
 
@@ -110,7 +121,7 @@ defmodule AutoforgeWeb.GoogleServiceAccountComponent do
         <div class="card bg-base-100 border border-base-300 mb-4">
           <div class="card-body">
             <h3 class="text-lg font-medium mb-3">
-              {if @editing_config, do: "Edit Service Account", else: "Add Service Account"}
+              {if @editing_config, do: "Edit API Key", else: "Add API Key"}
             </h3>
             <.form
               for={@form}
@@ -122,16 +133,28 @@ defmodule AutoforgeWeb.GoogleServiceAccountComponent do
               <.input
                 field={@form[:label]}
                 label="Label"
-                placeholder="e.g. Workspace Tools, Cloud Storage..."
+                placeholder="e.g. Production, Staging..."
               />
 
-              <.textarea
-                field={@form[:service_account_json]}
-                label="Service Account JSON Key"
-                placeholder="Paste the contents of your service account JSON key file..."
-                rows={10}
-                class="font-mono text-xs overflow-y-auto resize-y max-h-64"
+              <.input
+                field={@form[:api_key]}
+                label="API Key"
+                type="password"
+                placeholder="Enter your Connecteam API key..."
               />
+
+              <div>
+                <label class="text-sm font-medium mb-1 block">Region</label>
+                <select name={@form[:region].name} class="select select-bordered w-full">
+                  <option
+                    :for={{label, value} <- @region_options}
+                    value={value}
+                    selected={to_string(@form[:region].value) == value}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </div>
 
               <div class="flex items-center gap-3 pt-2">
                 <.button type="submit" variant="solid" color="primary" size="sm">
@@ -159,6 +182,7 @@ defmodule AutoforgeWeb.GoogleServiceAccountComponent do
               <div class="flex items-center justify-between mb-3">
                 <div class="flex items-center gap-2">
                   <span class="font-semibold">{config.label}</span>
+                  <span class="badge badge-sm badge-outline">{region_label(config.region)}</span>
                   <span class={"badge badge-sm #{if config.enabled, do: "badge-success", else: "badge-warning"}"}>
                     {if config.enabled, do: "Enabled", else: "Disabled"}
                   </span>
@@ -177,24 +201,13 @@ defmodule AutoforgeWeb.GoogleServiceAccountComponent do
                     phx-click="delete"
                     phx-value-id={config.id}
                     phx-target={@myself}
-                    data-confirm="Are you sure you want to remove this service account?"
+                    data-confirm="Are you sure you want to remove this API key?"
                     class="text-error"
                   >
                     <.icon name="hero-trash" class="w-4 h-4 mr-2" /> Delete
                   </.dropdown_button>
                 </.dropdown>
               </div>
-
-              <dl class="space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <dt class="text-base-content/70">Client Email</dt>
-                  <dd class="font-mono">{config.client_email}</dd>
-                </div>
-                <div class="flex justify-between">
-                  <dt class="text-base-content/70">Project ID</dt>
-                  <dd class="font-mono">{config.project_id}</dd>
-                </div>
-              </dl>
             </div>
           </div>
         </div>
@@ -204,9 +217,9 @@ defmodule AutoforgeWeb.GoogleServiceAccountComponent do
         <div class="card bg-base-200">
           <div class="card-body items-center text-center py-10">
             <.icon name="hero-key" class="w-10 h-10 text-base-content/30 mb-2" />
-            <p class="text-base-content/70">No Google Service Accounts configured.</p>
+            <p class="text-base-content/70">No Connecteam API keys configured.</p>
             <p class="text-sm text-base-content/50">
-              Add a service account JSON key to enable Google Workspace integrations.
+              Add an API key to enable Connecteam scheduling and workforce tools.
             </p>
           </div>
         </div>
