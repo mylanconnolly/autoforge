@@ -3,12 +3,18 @@ defmodule Autoforge.Deployments.Workers.VmProvisionWorker do
   Oban worker that provisions a VM instance on GCE.
   """
 
-  use Oban.Worker, queue: :deployments, max_attempts: 3
+  use Oban.Worker, queue: :deployments, max_attempts: 5
 
   alias Autoforge.Deployments.{VmInstance, VmProvisioner}
 
   require Ash.Query
   require Logger
+
+  @impl Oban.Worker
+  def backoff(%Oban.Job{attempt: attempt}) do
+    # Longer exponential backoff: ~30s, ~120s, ~270s, ~480s
+    attempt * attempt * 30
+  end
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"vm_instance_id" => vm_instance_id}}) do
@@ -49,7 +55,13 @@ defmodule Autoforge.Deployments.Workers.VmProvisionWorker do
           "VmProvisionWorker: failed to provision #{vm_instance.id}: #{inspect(reason)}"
         )
 
-        {:error, reason}
+        if rate_limited?(reason), do: {:snooze, 120}, else: {:error, reason}
     end
   end
+
+  defp rate_limited?(reason) when is_binary(reason) do
+    String.contains?(reason, "Rate Limit") or String.contains?(reason, "rateLimitExceeded")
+  end
+
+  defp rate_limited?(_), do: false
 end

@@ -335,8 +335,9 @@ defmodule Autoforge.Google.ComputeEngine do
         url: path,
         method: method,
         auth: {:bearer, token},
-        max_retries: 2,
-        retry_delay: 1_000,
+        max_retries: 3,
+        retry_delay: &gce_retry_delay/1,
+        retry: &gce_retryable?/1,
         receive_timeout: 60_000
       ] ++ opts
 
@@ -362,5 +363,22 @@ defmodule Autoforge.Google.ComputeEngine do
       {:error, reason} ->
         {:error, "GCE request failed: #{inspect(reason)}"}
     end
+  end
+
+  defp gce_retryable?(%Req.Response{status: 429}), do: true
+  defp gce_retryable?(%Req.Response{status: status}) when status >= 500, do: true
+
+  defp gce_retryable?(%Req.Response{status: 403, body: %{"error" => %{"message" => msg}}}) do
+    String.contains?(msg, "Rate Limit")
+  end
+
+  defp gce_retryable?(%{__exception__: true}), do: true
+  defp gce_retryable?(_), do: false
+
+  # Exponential backoff: ~2s, ~4s, ~8s (with jitter)
+  defp gce_retry_delay(attempt) do
+    delay = Integer.pow(2, attempt) * 1_000
+    jitter = :rand.uniform(1_000)
+    delay + jitter
   end
 end
