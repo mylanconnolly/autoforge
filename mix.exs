@@ -68,6 +68,7 @@ defmodule Autoforge.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:kubernetes_health_check, "~> 0.7"},
       {:req_llm, "~> 1.0"},
       {:fluxon, "~> 2.0.0", repo: :fluxon},
       {:picosat_elixir, "~> 0.2"},

@@ -56,4 +56,3 @@ defmodule Autoforge.Release do
     Application.ensure_loaded(@app)
   end
 end
-

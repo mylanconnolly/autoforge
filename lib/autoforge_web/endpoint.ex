@@ -11,6 +11,10 @@ defmodule AutoforgeWeb.Endpoint do
     same_site: "Lax"
   ]
 
+  plug KubernetesHealthCheck.Plug,
+    mod: Autoforge.Health,
+    base_path: "/healthz"
+
   socket "/socket", AutoforgeWeb.UserSocket,
     websocket: [connect_info: [session: @session_options]]
 
