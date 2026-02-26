@@ -9,6 +9,11 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
 
   on_mount {AutoforgeWeb.LiveUserAuth, :live_user_required}
 
+  # Families that only support Hyperdisk (no Persistent Disk)
+  @hyperdisk_only_families ~w(c4a c4d)
+  # Families that only support Persistent Disk (no Hyperdisk)
+  @pd_only_families ~w(e2 n1 c2 c2d t2d t2a a2)
+
   @impl true
   def mount(params, _session, socket) do
     user = socket.assigns.current_user
@@ -61,6 +66,7 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
           zone_options: nil,
           machine_type_options: nil,
           disk_type_options: nil,
+          all_disk_type_options: nil,
           os_image_options: nil,
           all_os_images: [],
           selected_arch: "X86_64",
@@ -229,10 +235,16 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
           nil
       end
 
+    current_machine_type =
+      AshPhoenix.Form.value(socket.assigns.form.source, :machine_type)
+
+    filtered_disk_types = filter_disk_types_for_machine(disk_type_options, current_machine_type)
+
     {:noreply,
      assign(socket,
        machine_type_options: machine_type_options,
-       disk_type_options: disk_type_options,
+       all_disk_type_options: disk_type_options,
+       disk_type_options: filtered_disk_types,
        loading_machine_types: false,
        loading_disk_types: false
      )}
@@ -242,6 +254,7 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
     {:noreply,
      assign(socket,
        machine_type_options: nil,
+       all_disk_type_options: nil,
        disk_type_options: nil,
        loading_machine_types: false,
        loading_disk_types: false,
@@ -323,6 +336,34 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
     case Regex.run(~r/^(.+?)-(\d+)$/, name) do
       [_, family, cores] -> {family, String.to_integer(cores)}
       _ -> {name, 0}
+    end
+  end
+
+  defp machine_family(machine_type) when is_binary(machine_type) do
+    case Regex.run(~r/^([a-z]\d+[a-z]?)-/, machine_type) do
+      [_, family] -> family
+      _ -> nil
+    end
+  end
+
+  defp machine_family(_), do: nil
+
+  defp filter_disk_types_for_machine(nil, _machine_type), do: nil
+
+  defp filter_disk_types_for_machine(all_options, machine_type) do
+    family = machine_family(machine_type)
+
+    cond do
+      family in @hyperdisk_only_families ->
+        Enum.filter(all_options, fn {_label, value} ->
+          String.starts_with?(value, "hyperdisk-")
+        end)
+
+      family in @pd_only_families ->
+        Enum.filter(all_options, fn {_label, value} -> String.starts_with?(value, "pd-") end)
+
+      true ->
+        all_options
     end
   end
 
@@ -421,7 +462,14 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
       |> AshPhoenix.Form.validate(params)
       |> to_form()
 
-    {:noreply, assign(socket, form: form)}
+    # Re-filter disk types when machine type changes
+    disk_type_options =
+      filter_disk_types_for_machine(
+        socket.assigns.all_disk_type_options,
+        params["machine_type"]
+      )
+
+    {:noreply, assign(socket, form: form, disk_type_options: disk_type_options)}
   end
 
   def handle_event("save", %{"form" => params}, socket) do
