@@ -3,9 +3,10 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
 
   alias Autoforge.Config.GoogleServiceAccountConfig
   alias Autoforge.Deployments.VmTemplate
-  alias Autoforge.Google.{Auth, ComputeEngine}
+  alias Autoforge.Google.{Auth, ComputeEngine, Pricing}
 
   require Ash.Query
+  require Logger
 
   on_mount {AutoforgeWeb.LiveUserAuth, :live_user_required}
 
@@ -71,6 +72,9 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
           all_os_images: [],
           selected_arch: "X86_64",
           loading_images: true,
+          pricing: nil,
+          price_estimate: nil,
+          machine_type_specs: %{},
           regions_to_zones: %{},
           loading_regions: true,
           loading_zones: true,
@@ -99,6 +103,7 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
           {regions_result, zones_result}
         end)
         |> start_async(:fetch_os_images, fn -> fetch_all_os_images(token) end)
+        |> start_async(:fetch_pricing, fn -> Pricing.get_or_fetch(token) end)
 
       {:error, reason} ->
         assign(socket,
@@ -113,8 +118,10 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
   end
 
   defp get_gce_credentials do
+    scopes = ComputeEngine.scopes() ++ Pricing.scopes()
+
     with {:ok, sa_config} <- get_service_account_config(),
-         {:ok, token} <- Auth.get_access_token(sa_config, ComputeEngine.scopes()) do
+         {:ok, token} <- Auth.get_access_token(sa_config, scopes) do
       {:ok, token, sa_config.project_id}
     end
   end
@@ -201,25 +208,36 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
         {:ok, {machine_types_result, disk_types_result}},
         socket
       ) do
-    machine_type_options =
+    {machine_type_options, machine_type_specs} =
       case machine_types_result do
         {:ok, types} ->
-          types
-          |> Enum.reject(fn mt -> String.starts_with?(mt["name"], "custom-") end)
-          |> Enum.sort_by(fn mt -> machine_type_sort_key(mt["name"]) end)
-          |> Enum.map(fn mt ->
-            memory_gb = Float.round(mt["memoryMb"] / 1024, 1)
+          filtered =
+            types
+            |> Enum.reject(fn mt -> String.starts_with?(mt["name"], "custom-") end)
+            |> Enum.sort_by(fn mt -> machine_type_sort_key(mt["name"]) end)
 
-            memory_label =
-              if memory_gb == trunc(memory_gb),
-                do: "#{trunc(memory_gb)} GB",
-                else: "#{memory_gb} GB"
+          options =
+            Enum.map(filtered, fn mt ->
+              memory_gb = Float.round(mt["memoryMb"] / 1024, 1)
 
-            {"#{mt["name"]} (#{mt["guestCpus"]} vCPU, #{memory_label})", mt["name"]}
-          end)
+              memory_label =
+                if memory_gb == trunc(memory_gb),
+                  do: "#{trunc(memory_gb)} GB",
+                  else: "#{memory_gb} GB"
+
+              {"#{mt["name"]} (#{mt["guestCpus"]} vCPU, #{memory_label})", mt["name"]}
+            end)
+
+          specs =
+            Map.new(filtered, fn mt ->
+              {mt["name"],
+               %{vcpus: mt["guestCpus"], ram_gb: Float.round(mt["memoryMb"] / 1024, 2)}}
+            end)
+
+          {options, specs}
 
         {:error, _} ->
-          nil
+          {nil, %{}}
       end
 
     disk_type_options =
@@ -241,13 +259,16 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
     filtered_disk_types = filter_disk_types_for_machine(disk_type_options, current_machine_type)
 
     {:noreply,
-     assign(socket,
+     socket
+     |> assign(
        machine_type_options: machine_type_options,
+       machine_type_specs: machine_type_specs,
        all_disk_type_options: disk_type_options,
        disk_type_options: filtered_disk_types,
        loading_machine_types: false,
        loading_disk_types: false
-     )}
+     )
+     |> recalculate_price_estimate()}
   end
 
   def handle_async(:fetch_zone_resources, {:exit, reason}, socket) do
@@ -311,6 +332,23 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
     {:noreply, assign(socket, loading_images: false)}
   end
 
+  def handle_async(:fetch_pricing, {:ok, {:ok, pricing}}, socket) do
+    {:noreply,
+     socket
+     |> assign(pricing: pricing)
+     |> recalculate_price_estimate()}
+  end
+
+  def handle_async(:fetch_pricing, {:ok, {:error, reason}}, socket) do
+    Logger.warning("Failed to fetch GCE pricing: #{reason}")
+    {:noreply, socket}
+  end
+
+  def handle_async(:fetch_pricing, {:exit, reason}, socket) do
+    Logger.warning("Pricing fetch crashed: #{inspect(reason)}")
+    {:noreply, socket}
+  end
+
   defp fetch_all_os_images(token) do
     ComputeEngine.image_projects()
     |> Task.async_stream(
@@ -366,6 +404,108 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
         all_options
     end
   end
+
+  @hours_per_month 730
+
+  defp recalculate_price_estimate(socket, params \\ nil) do
+    pricing = socket.assigns.pricing
+
+    if is_nil(pricing) do
+      assign(socket, price_estimate: nil)
+    else
+      form = socket.assigns.form.source
+
+      machine_type =
+        (params && params["machine_type"]) || AshPhoenix.Form.value(form, :machine_type)
+
+      disk_type = (params && params["disk_type"]) || AshPhoenix.Form.value(form, :disk_type)
+      disk_size = (params && params["disk_size_gb"]) || AshPhoenix.Form.value(form, :disk_size_gb)
+      region = (params && params["region"]) || AshPhoenix.Form.value(form, :region)
+      os_image = (params && params["os_image"]) || AshPhoenix.Form.value(form, :os_image)
+      specs = Map.get(socket.assigns.machine_type_specs, machine_type)
+
+      disk_size = parse_disk_size(disk_size)
+
+      compute_hourly =
+        if specs do
+          case Pricing.estimate_machine_hourly(
+                 pricing,
+                 machine_type,
+                 region,
+                 specs.vcpus,
+                 specs.ram_gb
+               ) do
+            {:ok, h} -> h
+            _ -> nil
+          end
+        end
+
+      disk_monthly =
+        if disk_type && disk_size && region do
+          case Pricing.estimate_disk_monthly(pricing, disk_type, region, disk_size) do
+            {:ok, d} -> d
+            _ -> nil
+          end
+        end
+
+      os_key = image_license_key(os_image)
+
+      license_hourly =
+        if os_key && specs do
+          case Pricing.estimate_license_hourly(pricing, os_key, specs.vcpus) do
+            {:ok, h} when h > 0 -> h
+            _ -> nil
+          end
+        end
+
+      compute_monthly = if compute_hourly, do: compute_hourly * @hours_per_month
+      license_monthly = if license_hourly, do: license_hourly * @hours_per_month
+
+      total =
+        [compute_monthly, disk_monthly, license_monthly]
+        |> Enum.reject(&is_nil/1)
+        |> case do
+          [] -> nil
+          costs -> Enum.sum(costs)
+        end
+
+      estimate =
+        if total do
+          %{
+            compute_hourly: compute_hourly,
+            compute_monthly: compute_monthly,
+            disk_monthly: disk_monthly,
+            license_hourly: license_hourly,
+            license_monthly: license_monthly,
+            total_monthly: total
+          }
+        end
+
+      assign(socket, price_estimate: estimate)
+    end
+  end
+
+  defp image_license_key(os_image) when is_binary(os_image) do
+    cond do
+      String.contains?(os_image, "ubuntu-os-pro-cloud") -> "ubuntu-pro"
+      String.contains?(os_image, "rhel-cloud") -> "rhel"
+      String.contains?(os_image, "suse-cloud") -> "sles"
+      true -> nil
+    end
+  end
+
+  defp image_license_key(_), do: nil
+
+  defp parse_disk_size(n) when is_integer(n), do: n
+
+  defp parse_disk_size(s) when is_binary(s) do
+    case Integer.parse(s) do
+      {n, _} -> n
+      :error -> nil
+    end
+  end
+
+  defp parse_disk_size(_), do: nil
 
   defp filter_images_by_arch(images, arch) do
     images
@@ -469,7 +609,10 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
         params["machine_type"]
       )
 
-    {:noreply, assign(socket, form: form, disk_type_options: disk_type_options)}
+    {:noreply,
+     socket
+     |> assign(form: form, disk_type_options: disk_type_options)
+     |> recalculate_price_estimate(params)}
   end
 
   def handle_event("save", %{"form" => params}, socket) do
@@ -612,6 +755,8 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
                 />
               </div>
 
+              <.price_estimate_card :if={@price_estimate} estimate={@price_estimate} />
+
               <.textarea
                 field={@form[:startup_script]}
                 label="Startup Script"
@@ -673,5 +818,63 @@ defmodule AutoforgeWeb.VmTemplateFormLive do
       search_input_placeholder={assigns[:search_input_placeholder] || ""}
     />
     """
+  end
+
+  defp price_estimate_card(assigns) do
+    ~H"""
+    <div class="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+      <div class="flex items-center gap-2 mb-2">
+        <.icon name="hero-calculator" class="w-4 h-4 text-primary" />
+        <span class="text-sm font-semibold text-primary">Estimated Monthly Cost</span>
+        <span class="text-xs text-base-content/50">(on-demand pricing)</span>
+      </div>
+
+      <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        <div :if={@estimate.compute_monthly}>
+          <span class="text-base-content/60">Compute</span>
+          <div class="font-mono font-medium">
+            {format_price(@estimate.compute_monthly)}/mo
+          </div>
+          <div class="text-xs text-base-content/50">
+            {format_price(@estimate.compute_hourly)}/hr
+          </div>
+        </div>
+
+        <div :if={@estimate.disk_monthly}>
+          <span class="text-base-content/60">Storage</span>
+          <div class="font-mono font-medium">
+            {format_price(@estimate.disk_monthly)}/mo
+          </div>
+        </div>
+
+        <div :if={@estimate[:license_monthly]}>
+          <span class="text-base-content/60">Image license</span>
+          <div class="font-mono font-medium">
+            {format_price(@estimate.license_monthly)}/mo
+          </div>
+          <div class="text-xs text-base-content/50">
+            {format_price(@estimate.license_hourly)}/hr
+          </div>
+        </div>
+
+        <div>
+          <span class="text-base-content/60">Total</span>
+          <div class="font-mono font-semibold text-base">
+            ~{format_price(@estimate.total_monthly)}/mo
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp format_price(nil), do: "—"
+
+  defp format_price(amount) when amount < 0.01 do
+    "$" <> :erlang.float_to_binary(amount * 1.0, decimals: 4)
+  end
+
+  defp format_price(amount) do
+    "$" <> :erlang.float_to_binary(amount * 1.0, decimals: 2)
   end
 end
