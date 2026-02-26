@@ -1,0 +1,100 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "config/**"
+      - "rel/**"
+      - "priv/**"
+      - "assets/**"
+      - "mix.exs"
+      - "mix.lock"
+      - "scripts/**"
+      - ".github/workflows/deploy.yml"
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  MIX_ENV: prod
+  ELIXIR_VERSION: "1.19.5"
+  OTP_VERSION: "28.3.1"
+  MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 4
+
+permissions:
+  contents: read
+  id-token: write # Required for Workload Identity Federation
+
+jobs:
+  build:
+    name: Build Release
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-arm64-prod-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            deps-arm64-prod-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+          save-always: true
+
+      - name: Cache _build
+        uses: actions/cache@v4
+        with:
+          path: _build
+          key: build-arm64-prod-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}-${{ hashFiles('lib/**', 'config/**', 'rel/**') }}
+          restore-keys: |
+            build-arm64-prod-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}-
+            build-arm64-prod-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+          save-always: true
+
+      - name: Install dependencies
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get --only prod
+
+      - name: Compile deps
+        run: mix deps.compile
+
+      - name: Compile application
+        run: mix compile
+
+      - name: Build assets
+        run: mix assets.deploy
+
+      - name: Build release
+        run: |
+          rm -rf _build/prod/rel
+          mix release --overwrite
+
+      - name: Package release
+        run: |
+          cd _build/prod/rel/autoforge
+          tar czf $GITHUB_WORKSPACE/autoforge-${{ github.sha }}.tar.gz .
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: atlas-app@iotrak-atlas-app.iam.gserviceaccount.com
+
+      - name: Upload release to GCS
+        uses: google-github-actions/upload-cloud-storage@v2
+        with:
+          path: autoforge-${{ github.sha }}.tar.gz
+          destination: iotrak-atlas-builds/autoforge/
