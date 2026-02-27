@@ -22,13 +22,13 @@ defmodule Autoforge.Accounts.User do
     end
 
     strategies do
-      magic_link do
-        identity_field :email
-        registration_enabled? true
-        require_interaction? true
+      # magic_link do
+      #   identity_field :email
+      #   registration_enabled? true
+      #   require_interaction? true
 
-        sender Autoforge.Accounts.User.Senders.SendMagicLinkEmail
-      end
+      #   sender Autoforge.Accounts.User.Senders.SendMagicLinkEmail
+      # end
 
       auth0 :auth0 do
         client_id Autoforge.Secrets
