@@ -33,7 +33,9 @@ defmodule AutoforgeWeb.ProfileLive do
        api_keys: api_keys,
        new_api_key_label: "",
        new_api_key_expires_in: "30",
-       newly_created_key: nil
+       newly_created_key: nil,
+       show_mcp_instructions?: false,
+       mcp_url: AutoforgeWeb.Endpoint.url() <> "/mcp"
      )}
   end
 
@@ -114,6 +116,10 @@ defmodule AutoforgeWeb.ProfileLive do
     {:noreply, assign(socket, show_ssh_instructions?: !socket.assigns.show_ssh_instructions?)}
   end
 
+  def handle_event("toggle_mcp_instructions", _params, socket) do
+    {:noreply, assign(socket, show_mcp_instructions?: !socket.assigns.show_mcp_instructions?)}
+  end
+
   def handle_event("update_api_key_form", params, socket) do
     {:noreply,
      assign(socket,
@@ -181,6 +187,21 @@ defmodule AutoforgeWeb.ProfileLive do
     |> Ash.Query.filter(user_id == ^user.id)
     |> Ash.Query.sort(inserted_at: :desc)
     |> Ash.read!(actor: user)
+  end
+
+  defp mcp_json_config(mcp_url) do
+    %{
+      "mcpServers" => %{
+        "autoforge" => %{
+          "type" => "streamablehttp",
+          "url" => mcp_url,
+          "headers" => %{
+            "Authorization" => "Bearer YOUR_API_KEY"
+          }
+        }
+      }
+    }
+    |> Jason.encode!(pretty: true)
   end
 
   defp maybe_drop_empty_token(params) do
@@ -460,6 +481,111 @@ defmodule AutoforgeWeb.ProfileLive do
                 </table>
               </div>
             <% end %>
+
+            <div class="mt-4 pt-4 border-t border-base-content/10">
+              <button
+                type="button"
+                phx-click="toggle_mcp_instructions"
+                class="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors cursor-pointer"
+              >
+                <.icon
+                  name={
+                    if @show_mcp_instructions?,
+                      do: "hero-chevron-up",
+                      else: "hero-chevron-down"
+                  }
+                  class="w-3.5 h-3.5"
+                />
+                {if @show_mcp_instructions?, do: "Hide", else: "Show"} MCP server setup instructions
+              </button>
+
+              <%= if @show_mcp_instructions? do %>
+                <div class="mt-3 space-y-4 text-sm">
+                  <p class="text-base-content/70">
+                    Use your API key to connect Claude to Autoforge's MCP server. The server URL is:
+                  </p>
+                  <div class="relative group">
+                    <pre class="bg-base-300 rounded-lg p-3 pr-10 text-xs font-mono text-base-content/90 overflow-x-auto"><%= @mcp_url %></pre>
+                    <button
+                      type="button"
+                      id="copy-mcp-url"
+                      phx-hook="CopyToClipboard"
+                      data-clipboard-text={@mcp_url}
+                      data-copied-html="<span class='inline-flex items-center gap-1'><svg xmlns='http://www.w3.org/2000/svg' class='w-4 h-4' viewBox='0 0 20 20' fill='currentColor'><path fill-rule='evenodd' d='M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z' clip-rule='evenodd'/></svg> Copied</span>"
+                      class="absolute top-2 right-2 p-1.5 rounded-md bg-base-100/80 hover:bg-base-100 text-base-content/50 hover:text-base-content transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                    >
+                      <.icon name="hero-clipboard-document" class="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <%!-- Claude Code --%>
+                  <div class="p-4 bg-base-300/50 rounded-lg space-y-3">
+                    <h3 class="font-semibold text-sm">Claude Code</h3>
+                    <p class="text-xs text-base-content/70">
+                      Add the following to your project's
+                      <span class="font-mono text-primary">.mcp.json</span>
+                      file (create it in the project root if it doesn't exist):
+                    </p>
+                    <div class="relative group">
+                      <pre class="bg-base-300 rounded-lg p-3 pr-10 text-xs font-mono text-base-content/90 overflow-x-auto"><%= mcp_json_config(@mcp_url) %></pre>
+                      <button
+                        type="button"
+                        id="copy-claude-code-config"
+                        phx-hook="CopyToClipboard"
+                        data-clipboard-text={mcp_json_config(@mcp_url)}
+                        data-copied-html="<span class='inline-flex items-center gap-1'><svg xmlns='http://www.w3.org/2000/svg' class='w-4 h-4' viewBox='0 0 20 20' fill='currentColor'><path fill-rule='evenodd' d='M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z' clip-rule='evenodd'/></svg> Copied</span>"
+                        class="absolute top-2 right-2 p-1.5 rounded-md bg-base-100/80 hover:bg-base-100 text-base-content/50 hover:text-base-content transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                      >
+                        <.icon name="hero-clipboard-document" class="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p class="text-xs text-base-content/60">
+                      This works the same on macOS, Windows, and Linux &mdash; including dev sandboxes.
+                      Replace <span class="font-mono">YOUR_API_KEY</span>
+                      with the key you copied above.
+                    </p>
+                  </div>
+
+                  <%!-- Claude Desktop --%>
+                  <div class="p-4 bg-base-300/50 rounded-lg space-y-3">
+                    <h3 class="font-semibold text-sm">Claude Desktop</h3>
+                    <p class="text-xs text-base-content/70">
+                      Add the following to your Claude Desktop config file:
+                    </p>
+                    <div class="relative group">
+                      <pre class="bg-base-300 rounded-lg p-3 pr-10 text-xs font-mono text-base-content/90 overflow-x-auto"><%= mcp_json_config(@mcp_url) %></pre>
+                      <button
+                        type="button"
+                        id="copy-claude-desktop-config"
+                        phx-hook="CopyToClipboard"
+                        data-clipboard-text={mcp_json_config(@mcp_url)}
+                        data-copied-html="<span class='inline-flex items-center gap-1'><svg xmlns='http://www.w3.org/2000/svg' class='w-4 h-4' viewBox='0 0 20 20' fill='currentColor'><path fill-rule='evenodd' d='M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z' clip-rule='evenodd'/></svg> Copied</span>"
+                        class="absolute top-2 right-2 p-1.5 rounded-md bg-base-100/80 hover:bg-base-100 text-base-content/50 hover:text-base-content transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                      >
+                        <.icon name="hero-clipboard-document" class="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div class="text-xs text-base-content/60 space-y-1.5">
+                      <p class="font-medium text-base-content/70">Config file location:</p>
+                      <ul class="space-y-1 ml-1">
+                        <li>
+                          <span class="font-semibold">macOS:</span>
+                          <span class="font-mono text-primary break-all">
+                            ~/Library/Application Support/Claude/claude_desktop_config.json
+                          </span>
+                        </li>
+                        <li>
+                          <span class="font-semibold">Windows:</span>
+                          <span class="font-mono text-primary break-all">
+                            %APPDATA%\Claude\claude_desktop_config.json
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
           </div>
         </div>
       </div>
