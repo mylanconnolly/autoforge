@@ -53,6 +53,7 @@ const TerminalHook = {
   mounted() {
     const projectId = this.el.dataset.projectId;
     const userToken = this.el.dataset.userToken;
+    const sessionName = this.el.dataset.sessionName || "term-1";
 
     this.term = new Terminal({
       cursorBlink: true,
@@ -72,18 +73,31 @@ const TerminalHook = {
     this.socket = new Socket("/socket", { params: { token: userToken } });
     this.socket.connect();
 
-    this.channel = this.socket.channel(`terminal:${projectId}`, {});
+    this.channel = this.socket.channel(`terminal:${projectId}`, {
+      session_name: sessionName,
+    });
 
     this.channel
       .join()
       .receive("ok", () => {
-        this.term.writeln("\x1b[32mConnected to sandbox terminal.\x1b[0m\r\n");
+        // Send initial resize so tmux gets correct dimensions
+        const dims = this.fitAddon.proposeDimensions();
+        if (dims) {
+          this.channel.push("resize", { cols: dims.cols, rows: dims.rows });
+        }
       })
       .receive("error", (resp) => {
         this.term.writeln(
           `\x1b[31mFailed to connect: ${JSON.stringify(resp)}\x1b[0m\r\n`,
         );
       });
+
+    // Show reconnection message on socket error
+    this.socket.onError(() => {
+      this.term.writeln(
+        "\r\n\x1b[33mConnection lost. Reconnecting...\x1b[0m",
+      );
+    });
 
     // Terminal input → channel
     this.term.onData((data) => {

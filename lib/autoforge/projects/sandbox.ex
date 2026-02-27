@@ -74,6 +74,7 @@ defmodule Autoforge.Projects.Sandbox do
            log_and_run(project, "Creating app user...", fn ->
              create_sandbox_user(app_container_id)
            end),
+         :ok <- install_tmux(app_container_id),
          :ok <- install_code_server(app_container_id, project),
          :ok <- install_code_server_extensions(app_container_id, project),
          :ok <- run_startup_script(app_container_id, project, variables),
@@ -436,6 +437,14 @@ defmodule Autoforge.Projects.Sandbox do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp install_tmux(container_id) do
+    script =
+      "command -v tmux >/dev/null 2>&1 && exit 0; apt-get update -qq && apt-get install -y -qq tmux >/dev/null 2>&1"
+
+    Docker.exec_run(container_id, ["/bin/bash", "-c", script])
+    :ok
   end
 
   defp install_code_server(container_id, project) do

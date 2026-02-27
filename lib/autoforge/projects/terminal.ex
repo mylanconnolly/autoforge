@@ -11,7 +11,7 @@ defmodule Autoforge.Projects.Terminal do
 
   require Logger
 
-  defstruct [:socket, :exec_id, :channel_pid, :project, :monitor_ref]
+  defstruct [:socket, :exec_id, :channel_pid, :project, :monitor_ref, :session_name]
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts)
@@ -31,11 +31,13 @@ defmodule Autoforge.Projects.Terminal do
     project = Ash.load!(project, [:env_vars], authorize?: false)
     user = Keyword.fetch!(opts, :user)
     channel_pid = Keyword.fetch!(opts, :channel_pid)
+    session_name = Keyword.get(opts, :session_name, "term-1")
     monitor_ref = Process.monitor(channel_pid)
 
     setup_container_user_config(project.container_id, user)
+    ensure_tmux_ready(project.container_id)
 
-    case start_exec_session(project) do
+    case start_exec_session(project, session_name) do
       {:ok, socket, exec_id, initial_data} ->
         if initial_data != "" do
           send(channel_pid, {:terminal_output, initial_data})
@@ -49,7 +51,8 @@ defmodule Autoforge.Projects.Terminal do
            exec_id: exec_id,
            channel_pid: channel_pid,
            project: project,
-           monitor_ref: monitor_ref
+           monitor_ref: monitor_ref,
+           session_name: session_name
          }}
 
       {:error, reason} ->
@@ -214,15 +217,69 @@ defmodule Autoforge.Projects.Terminal do
       "/var/run/docker.sock"
   end
 
-  defp start_exec_session(project) do
+  defp ensure_tmux_ready(container_id) do
+    case Docker.exec_run(container_id, ["which", "tmux"]) do
+      {:ok, %{exit_code: 0}} ->
+        :ok
+
+      _ ->
+        Logger.info("tmux not found, installing...")
+
+        script =
+          "apt-get update -qq && apt-get install -y -qq tmux >/dev/null 2>&1"
+
+        case Docker.exec_run(container_id, ["/bin/bash", "-c", script]) do
+          {:ok, %{exit_code: 0}} -> :ok
+          _ -> Logger.warning("tmux installation failed, will fall back to bare bash")
+        end
+    end
+
+    ensure_tmux_config(container_id)
+  rescue
+    e ->
+      Logger.warning("ensure_tmux_ready failed: #{inspect(e)}")
+  end
+
+  defp ensure_tmux_config(container_id) do
+    tmux_conf = """
+    set -g status off
+    set -g mouse on
+    set -g history-limit 50000
+    set -g default-terminal "xterm-256color"
+    """
+
+    Docker.exec_run(container_id, [
+      "/bin/bash",
+      "-c",
+      "cat > /home/app/.tmux.conf << 'TMUXEOF'\n#{tmux_conf}TMUXEOF\nchown app:app /home/app/.tmux.conf"
+    ])
+
+    :ok
+  end
+
+  defp tmux_available?(container_id) do
+    case Docker.exec_run(container_id, ["which", "tmux"], user: "app") do
+      {:ok, %{exit_code: 0}} -> true
+      _ -> false
+    end
+  end
+
+  defp start_exec_session(project, session_name) do
     user_env_vars = build_user_env_vars(project)
+
+    cmd =
+      if tmux_available?(project.container_id) do
+        ["tmux", "new-session", "-A", "-s", session_name]
+      else
+        ["/bin/bash", "-l"]
+      end
 
     exec_config = %{
       "AttachStdin" => true,
       "AttachStdout" => true,
       "AttachStderr" => true,
       "Tty" => true,
-      "Cmd" => ["/bin/bash", "-l"],
+      "Cmd" => cmd,
       "User" => "app",
       "WorkingDir" => "/app",
       "Env" =>

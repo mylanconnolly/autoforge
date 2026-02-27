@@ -649,6 +649,7 @@ defmodule AutoforgeWeb.ProjectLive do
                   phx-update="ignore"
                   data-project-id={@project.id}
                   data-user-token={@user_token}
+                  data-session-name={tab.id}
                   class="h-full"
                 />
               </div>

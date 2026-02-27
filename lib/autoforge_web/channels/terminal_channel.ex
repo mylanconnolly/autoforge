@@ -6,8 +6,9 @@ defmodule AutoforgeWeb.TerminalChannel do
   require Ash.Query
 
   @impl true
-  def join("terminal:" <> project_id, _payload, socket) do
+  def join("terminal:" <> project_id, payload, socket) do
     user_id = socket.assigns.user_id
+    session_name = Map.get(payload, "session_name", "term-1")
 
     user =
       Autoforge.Accounts.User
@@ -28,7 +29,12 @@ defmodule AutoforgeWeb.TerminalChannel do
 
       true ->
         {:ok, terminal_pid} =
-          Terminal.start_link(project: project, user: user, channel_pid: self())
+          Terminal.start_link(
+            project: project,
+            user: user,
+            channel_pid: self(),
+            session_name: session_name
+          )
 
         {:ok, socket |> assign(:terminal_pid, terminal_pid) |> assign(:utf8_buffer, "")}
     end
