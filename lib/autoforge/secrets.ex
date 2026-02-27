@@ -1,6 +1,8 @@
 defmodule Autoforge.Secrets do
   use AshAuthentication.Secret
 
+  alias Autoforge.Accounts.User
+
   def secret_for(
         [:authentication, :tokens, :signing_secret],
         Autoforge.Accounts.User,
