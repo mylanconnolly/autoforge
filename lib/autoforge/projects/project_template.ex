@@ -29,6 +29,7 @@ defmodule Autoforge.Projects.ProjectTemplate do
         :bootstrap_script,
         :startup_script,
         :dev_server_script,
+        :dockerfile_template,
         :code_server_extensions
       ]
     end
@@ -42,6 +43,7 @@ defmodule Autoforge.Projects.ProjectTemplate do
         :bootstrap_script,
         :startup_script,
         :dev_server_script,
+        :dockerfile_template,
         :code_server_extensions
       ]
 
@@ -99,6 +101,13 @@ defmodule Autoforge.Projects.ProjectTemplate do
     attribute :dev_server_script, :string do
       allow_nil? true
       public? true
+    end
+
+    attribute :dockerfile_template, :string do
+      allow_nil? true
+      public? true
+
+      description "Liquid template for generating a production Dockerfile when one is not present in the project source."
     end
 
     attribute :code_server_extensions, {:array, Autoforge.Projects.CodeServerExtension} do

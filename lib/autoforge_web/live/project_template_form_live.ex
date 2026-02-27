@@ -169,9 +169,20 @@ defmodule AutoforgeWeb.ProjectTemplateFormLive do
     {"phx_host", "Tailscale hostname without scheme (for PHX_HOST)"}
   ]
 
+  @dockerfile_variables @template_variables ++
+                          [{"container_port", "Port the app listens on (default 4000)"}]
+
   defp template_variables(assigns) do
     assigns = assign(assigns, :variables, @template_variables)
+    variables_list(assigns)
+  end
 
+  defp dockerfile_variables(assigns) do
+    assigns = assign(assigns, :variables, @dockerfile_variables)
+    variables_list(assigns)
+  end
+
+  defp variables_list(assigns) do
     ~H"""
     <div
       id={"var-group-#{System.unique_integer([:positive])}"}
@@ -192,7 +203,7 @@ defmodule AutoforgeWeb.ProjectTemplateFormLive do
         <:content>
           <p class="text-xs">
             <span class="font-semibold text-base-content">{var}</span>
-            <span class="text-base-content/60"> —              {desc}</span>
+            <span class="text-base-content/60"> —               {desc}</span>
           </p>
           <p class="text-[10px] text-base-content/40 mt-1">Click to copy</p>
         </:content>
@@ -295,6 +306,26 @@ defmodule AutoforgeWeb.ProjectTemplateFormLive do
                   Leave blank to disable the server button.
                 </p>
                 <.template_variables />
+              </div>
+
+              <div>
+                <.textarea
+                  field={@form[:dockerfile_template]}
+                  label="Production Dockerfile"
+                  placeholder={"FROM {{ base_image }}\nWORKDIR /app\nCOPY . .\nEXPOSE {{ container_port }}\nCMD [\"./start.sh\"]"}
+                  rows={10}
+                  class="font-mono text-sm bg-base-300 border-base-300 rounded-lg px-3 py-2 w-full max-h-80 overflow-y-auto"
+                />
+                <p class="mt-1.5 text-xs text-base-content/50">
+                  Liquid template used to generate a production Dockerfile when deploying
+                  projects that don't have their own. Leave blank to use a simple fallback.
+                  For Phoenix projects, run
+                  <code class="px-1 py-0.5 rounded bg-base-300 text-base-content/70 font-mono">
+                    mix phx.gen.release --docker
+                  </code>
+                  inside the project instead.
+                </p>
+                <.dockerfile_variables />
               </div>
 
               <div>
