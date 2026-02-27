@@ -3,11 +3,21 @@ defmodule Autoforge.Config.GcsStorageConfig do
     otp_app: :autoforge,
     domain: Autoforge.Config,
     data_layer: AshPostgres.DataLayer,
-    authorizers: [Ash.Policy.Authorizer]
+    authorizers: [Ash.Policy.Authorizer],
+    extensions: [AshPaperTrail.Resource]
 
   postgres do
     table "gcs_storage_configs"
     repo Autoforge.Repo
+  end
+
+  paper_trail do
+    primary_key_type :uuid_v7
+    change_tracking_mode :changes_only
+    store_action_name? true
+    reference_source? false
+    ignore_attributes [:inserted_at, :updated_at]
+    belongs_to_actor :user, Autoforge.Accounts.User, domain: Autoforge.Accounts
   end
 
   actions do

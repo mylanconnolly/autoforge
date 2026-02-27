@@ -4,7 +4,7 @@ defmodule Autoforge.Projects.Project do
     domain: Autoforge.Projects,
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer],
-    extensions: [AshStateMachine, AshCloak],
+    extensions: [AshStateMachine, AshCloak, AshPaperTrail.Resource],
     notifiers: [Ash.Notifier.PubSub]
 
   postgres do
@@ -36,6 +36,17 @@ defmodule Autoforge.Projects.Project do
     vault(Autoforge.Vault)
     attributes([:db_password])
     decrypt_by_default([:db_password])
+  end
+
+  paper_trail do
+    primary_key_type :uuid_v7
+    change_tracking_mode :changes_only
+    store_action_name? true
+    reference_source? false
+    sensitive_attributes :redact
+    ignore_attributes [:inserted_at, :updated_at]
+    ignore_actions [:touch]
+    belongs_to_actor :user, Autoforge.Accounts.User, domain: Autoforge.Accounts
   end
 
   actions do

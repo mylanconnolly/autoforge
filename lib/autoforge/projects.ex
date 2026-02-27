@@ -1,8 +1,12 @@
 defmodule Autoforge.Projects do
-  use Ash.Domain, otp_app: :autoforge, extensions: [AshAdmin.Domain]
+  use Ash.Domain, otp_app: :autoforge, extensions: [AshAdmin.Domain, AshPaperTrail.Domain]
 
   admin do
     show? true
+  end
+
+  paper_trail do
+    include_versions? true
   end
 
   resources do

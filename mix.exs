@@ -76,6 +76,7 @@ defmodule Autoforge.MixProject do
       {:oban, "~> 2.0"},
       {:usage_rules, "~> 1.0", only: [:dev]},
       {:goth, "~> 1.4"},
+      {:ash_paper_trail, "~> 0.5"},
       {:ash_cloak, "~> 0.2"},
       {:cloak, "~> 1.0"},
       {:tidewave, "~> 0.5", only: [:dev]},

@@ -4,7 +4,7 @@ defmodule Autoforge.Accounts.User do
     domain: Autoforge.Accounts,
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer],
-    extensions: [AshAuthentication, AshCloak]
+    extensions: [AshAuthentication, AshCloak, AshPaperTrail.Resource]
 
   authentication do
     add_ons do
@@ -54,6 +54,17 @@ defmodule Autoforge.Accounts.User do
     vault(Autoforge.Vault)
     attributes([:github_token, :ssh_private_key])
     decrypt_by_default([:github_token, :ssh_private_key])
+  end
+
+  paper_trail do
+    primary_key_type :uuid_v7
+    change_tracking_mode :changes_only
+    store_action_name? true
+    reference_source? false
+    sensitive_attributes :redact
+    ignore_attributes [:inserted_at, :updated_at]
+    ignore_actions [:register_with_auth0, :sign_in_with_magic_link]
+    belongs_to_actor :user, Autoforge.Accounts.User, domain: Autoforge.Accounts
   end
 
   actions do

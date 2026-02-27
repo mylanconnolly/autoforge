@@ -4,7 +4,7 @@ defmodule Autoforge.Config.GoogleServiceAccountConfig do
     domain: Autoforge.Config,
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer],
-    extensions: [AshCloak]
+    extensions: [AshCloak, AshPaperTrail.Resource]
 
   postgres do
     table "google_service_account_configs"
@@ -15,6 +15,16 @@ defmodule Autoforge.Config.GoogleServiceAccountConfig do
     vault(Autoforge.Vault)
     attributes([:service_account_json])
     decrypt_by_default([:service_account_json])
+  end
+
+  paper_trail do
+    primary_key_type :uuid_v7
+    change_tracking_mode :changes_only
+    store_action_name? true
+    reference_source? false
+    sensitive_attributes :redact
+    ignore_attributes [:inserted_at, :updated_at]
+    belongs_to_actor :user, Autoforge.Accounts.User, domain: Autoforge.Accounts
   end
 
   actions do

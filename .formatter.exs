@@ -1,5 +1,6 @@
 [
   import_deps: [
+    :ash_paper_trail,
     :ash_state_machine,
     :ash_oban,
     :oban,

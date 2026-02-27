@@ -1,5 +1,9 @@
 defmodule Autoforge.Config do
-  use Ash.Domain, otp_app: :autoforge
+  use Ash.Domain, otp_app: :autoforge, extensions: [AshPaperTrail.Domain]
+
+  paper_trail do
+    include_versions? true
+  end
 
   resources do
     resource Autoforge.Config.TailscaleConfig
