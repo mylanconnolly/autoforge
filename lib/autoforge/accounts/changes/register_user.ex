@@ -16,7 +16,6 @@ defmodule Autoforge.Accounts.Changes.RegisterUser do
     user_info = Ash.Changeset.get_argument(changeset, :user_info)
 
     Ash.Changeset.change_attributes(changeset, %{
-      active: true,
       name: user_info["name"],
       email: user_info["email"]
     })

@@ -22,6 +22,12 @@ defmodule AutoforgeWeb.AuthController do
   end
 
   def failure(conn, activity, reason) do
+    require Logger
+
+    Logger.error(
+      "Authentication failure: activity=#{inspect(activity)} reason=#{inspect(reason)}"
+    )
+
     message =
       case {activity, reason} do
         {_,
@@ -45,11 +51,13 @@ defmodule AutoforgeWeb.AuthController do
   end
 
   def sign_out(conn, _params) do
-    return_to = get_session(conn, :return_to) || ~p"/"
+    config = Application.get_env(:autoforge, :auth0)
 
     conn
     |> clear_session(:autoforge)
-    |> put_flash(:info, "You are now signed out")
-    |> redirect(to: return_to)
+    |> redirect(
+      external:
+        "#{config[:base_url]}/v2/logout?client_id=#{config[:client_id]}&returnTo=#{AutoforgeWeb.Endpoint.url()}"
+    )
   end
 end
