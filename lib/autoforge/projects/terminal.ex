@@ -243,7 +243,6 @@ defmodule Autoforge.Projects.Terminal do
   defp ensure_tmux_config(container_id) do
     tmux_conf = """
     set -g status off
-    set -g mouse on
     set -g history-limit 50000
     set -g default-terminal "xterm-256color"
     """
