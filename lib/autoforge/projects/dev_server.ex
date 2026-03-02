@@ -47,6 +47,8 @@ defmodule Autoforge.Projects.DevServer do
               broadcast(project.id, {:dev_server_output, initial_data})
             end
 
+            broadcast(project.id, {:dev_server_started})
+
             {:ok,
              %__MODULE__{
                socket: socket,

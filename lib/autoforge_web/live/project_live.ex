@@ -104,12 +104,21 @@ defmodule AutoforgeWeb.ProjectLive do
     {:noreply, push_event(socket, "dev_server_output", %{type: "output", data: chunk})}
   end
 
+  def handle_info({:dev_server_started}, socket) do
+    {:noreply, assign(socket, dev_server_running: true, dev_server_tab_open: true)}
+  end
+
   def handle_info({:dev_server_stopped, _reason}, socket) do
     {:noreply, assign(socket, dev_server_running: false)}
   end
 
   def handle_info({:code_server_started}, socket) do
-    {:noreply, assign(socket, code_server_ready: true)}
+    {:noreply,
+     assign(socket,
+       code_server_running: true,
+       code_server_ready: true,
+       code_server_tab_open: true
+     )}
   end
 
   def handle_info({:code_server_output, _chunk}, socket) do
