@@ -96,6 +96,53 @@ defmodule Autoforge.Projects.Tailscale do
   end
 
   @doc """
+  Restarts the Tailscale sidecar without re-registering the device.
+
+  Creates a new container without `TS_AUTHKEY` so it reconnects using
+  the persisted state in the volume. Falls back to full re-provisioning
+  via `create_sidecar/2` if the state is invalid.
+  """
+  def restart_sidecar(project, app_container_id) do
+    case get_config() do
+      {:ok, config} ->
+        hostname = build_hostname(project)
+        volume_name = "autoforge-ts-#{project.id}"
+        container_name = "autoforge-ts-#{project.id}"
+
+        Docker.remove_container(container_name, force: true)
+
+        with {:ok, container_id} <-
+               create_sidecar_container(
+                 config,
+                 hostname,
+                 volume_name,
+                 nil,
+                 app_container_id,
+                 project
+               ),
+             :ok <- upload_serve_config(container_id),
+             :ok <- Docker.start_container(container_id),
+             :ok <- wait_for_tailscale(container_id) do
+          warm_up_cert(container_id, hostname, config.tailnet_name)
+          {:ok, container_id, hostname}
+        else
+          {:error, reason} ->
+            Logger.warning(
+              "Tailscale sidecar restart from state failed (#{inspect(reason)}), re-provisioning"
+            )
+
+            Docker.remove_container(container_name, force: true)
+            Docker.remove_volume(volume_name)
+            delete_tailnet_device(hostname)
+            create_sidecar(project, app_container_id)
+        end
+
+      :disabled ->
+        :disabled
+    end
+  end
+
+  @doc """
   Stops and removes the Tailscale sidecar container, its volume,
   and the device from the tailnet.
   """
@@ -166,6 +213,41 @@ defmodule Autoforge.Projects.Tailscale do
   end
 
   # Private helpers
+
+  @tailscale_ready_attempts 15
+  @tailscale_ready_delay_ms 2_000
+
+  defp wait_for_tailscale(container_id) do
+    do_wait_for_tailscale(container_id, 1)
+  end
+
+  defp do_wait_for_tailscale(_container_id, attempt)
+       when attempt > @tailscale_ready_attempts do
+    {:error, :tailscale_not_ready}
+  end
+
+  defp do_wait_for_tailscale(container_id, attempt) do
+    case Docker.exec_run(container_id, [
+           "tailscale",
+           "--socket=/tmp/tailscaled.sock",
+           "status",
+           "--json"
+         ]) do
+      {:ok, %{exit_code: 0, output: output}} ->
+        case Jason.decode(output) do
+          {:ok, %{"BackendState" => "Running"}} ->
+            :ok
+
+          _ ->
+            Process.sleep(@tailscale_ready_delay_ms)
+            do_wait_for_tailscale(container_id, attempt + 1)
+        end
+
+      _ ->
+        Process.sleep(@tailscale_ready_delay_ms)
+        do_wait_for_tailscale(container_id, attempt + 1)
+    end
+  end
 
   @cert_warmup_attempts 10
   @cert_warmup_delay_ms 2_000
@@ -289,16 +371,19 @@ defmodule Autoforge.Projects.Tailscale do
          app_container_id,
          project
        ) do
+    env = [
+      "TS_HOSTNAME=#{hostname}",
+      "TS_STATE_DIR=/var/lib/tailscale",
+      "TS_SERVE_CONFIG=/etc/tailscale/serve.json",
+      "TS_USERSPACE=false",
+      "TS_EXTRA_ARGS=--advertise-tags=#{config.tag}"
+    ]
+
+    env = if auth_key, do: ["TS_AUTHKEY=#{auth_key}" | env], else: env
+
     container_config = %{
       "Image" => "tailscale/tailscale:latest",
-      "Env" => [
-        "TS_AUTHKEY=#{auth_key}",
-        "TS_HOSTNAME=#{hostname}",
-        "TS_STATE_DIR=/var/lib/tailscale",
-        "TS_SERVE_CONFIG=/etc/tailscale/serve.json",
-        "TS_USERSPACE=false",
-        "TS_EXTRA_ARGS=--advertise-tags=#{config.tag}"
-      ],
+      "Env" => env,
       "HostConfig" => %{
         "NetworkMode" => "container:#{app_container_id}",
         "Binds" => ["#{volume_name}:/var/lib/tailscale"],

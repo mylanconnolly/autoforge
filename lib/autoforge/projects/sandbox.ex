@@ -595,15 +595,15 @@ defmodule Autoforge.Projects.Sandbox do
   end
 
   defp recreate_tailscale_sidecar(project) do
-    # Only stop/remove the container — keep the volume and tailnet device
-    # so the new sidecar reconnects as the same device with the same hostname.
-    # Full cleanup (device + volume deletion) happens in remove_sidecar/1 on destroy.
+    # Stop the old container, then restart using persisted Tailscale state
+    # (no new auth key) so the device reconnects with the same hostname.
+    # Falls back to full re-provisioning if the state is invalid.
     if project.tailscale_container_id do
       Docker.stop_container(project.tailscale_container_id, timeout: 5)
       Docker.remove_container(project.tailscale_container_id, force: true)
     end
 
-    case Tailscale.create_sidecar(project, project.container_id) do
+    case Tailscale.restart_sidecar(project, project.container_id) do
       {:ok, container_id, hostname} ->
         {container_id, hostname}
 
