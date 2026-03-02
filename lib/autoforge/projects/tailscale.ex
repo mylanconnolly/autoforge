@@ -76,7 +76,9 @@ defmodule Autoforge.Projects.Tailscale do
                  project
                ),
              :ok <- upload_serve_config(container_id),
-             :ok <- Docker.start_container(container_id) do
+             :ok <- Docker.start_container(container_id),
+             :ok <- wait_for_tailscale(container_id) do
+          warm_up_cert(container_id, hostname, config.tailnet_name)
           {:ok, container_id, hostname}
         else
           {:error, reason} ->
@@ -122,6 +124,7 @@ defmodule Autoforge.Projects.Tailscale do
              :ok <- upload_serve_config(container_id),
              :ok <- Docker.start_container(container_id),
              :ok <- wait_for_tailscale(container_id) do
+          warm_up_cert(container_id, hostname, config.tailnet_name)
           {:ok, container_id, hostname}
         else
           {:error, reason} ->
@@ -211,6 +214,42 @@ defmodule Autoforge.Projects.Tailscale do
   end
 
   # Private helpers
+
+  @cert_warmup_attempts 10
+  @cert_warmup_delay_ms 2_000
+
+  defp warm_up_cert(container_id, hostname, tailnet_name) do
+    fqdn = "#{hostname}.#{tailnet_name}"
+    do_warm_up_cert(container_id, fqdn, 1)
+  end
+
+  defp do_warm_up_cert(_container_id, fqdn, attempt) when attempt > @cert_warmup_attempts do
+    Logger.warning(
+      "Failed to provision TLS cert for #{fqdn} after #{@cert_warmup_attempts} attempts"
+    )
+  end
+
+  defp do_warm_up_cert(container_id, fqdn, attempt) do
+    case Docker.exec_run(container_id, [
+           "tailscale",
+           "--socket=/tmp/tailscaled.sock",
+           "cert",
+           fqdn
+         ]) do
+      {:ok, %{exit_code: 0}} ->
+        Logger.info("TLS cert provisioned for #{fqdn}")
+
+      {:ok, %{exit_code: _code, output: output}} ->
+        Logger.debug("Cert warmup attempt #{attempt} for #{fqdn}: #{output}")
+        Process.sleep(@cert_warmup_delay_ms)
+        do_warm_up_cert(container_id, fqdn, attempt + 1)
+
+      {:error, reason} ->
+        Logger.debug("Cert warmup attempt #{attempt} for #{fqdn}: #{inspect(reason)}")
+        Process.sleep(@cert_warmup_delay_ms)
+        do_warm_up_cert(container_id, fqdn, attempt + 1)
+    end
+  end
 
   @tailscale_ready_attempts 15
   @tailscale_ready_delay_ms 2_000
