@@ -216,11 +216,15 @@ defmodule Autoforge.Projects.Tailscale do
   # Private helpers
 
   @cert_warmup_attempts 10
-  @cert_warmup_delay_ms 2_000
+  @cert_warmup_delay_ms 3_000
+  @cert_warmup_timeout 60_000
 
   defp warm_up_cert(container_id, hostname, tailnet_name) do
     fqdn = "#{hostname}.#{tailnet_name}"
-    do_warm_up_cert(container_id, fqdn, 1)
+
+    Task.Supervisor.start_child(Autoforge.TaskSupervisor, fn ->
+      do_warm_up_cert(container_id, fqdn, 1)
+    end)
   end
 
   defp do_warm_up_cert(_container_id, fqdn, attempt) when attempt > @cert_warmup_attempts do
@@ -230,12 +234,11 @@ defmodule Autoforge.Projects.Tailscale do
   end
 
   defp do_warm_up_cert(container_id, fqdn, attempt) do
-    case Docker.exec_run(container_id, [
-           "tailscale",
-           "--socket=/tmp/tailscaled.sock",
-           "cert",
-           fqdn
-         ]) do
+    case Docker.exec_run(
+           container_id,
+           ["tailscale", "--socket=/tmp/tailscaled.sock", "cert", fqdn],
+           timeout: @cert_warmup_timeout
+         ) do
       {:ok, %{exit_code: 0}} ->
         Logger.info("TLS cert provisioned for #{fqdn}")
 

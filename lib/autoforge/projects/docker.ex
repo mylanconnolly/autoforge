@@ -95,6 +95,7 @@ defmodule Autoforge.Projects.Docker do
     env = Keyword.get(opts, :env, [])
     working_dir = Keyword.get(opts, :working_dir)
     user = Keyword.get(opts, :user)
+    timeout = Keyword.get(opts, :timeout)
 
     exec_config =
       %{
@@ -110,13 +111,15 @@ defmodule Autoforge.Projects.Docker do
         if user, do: Map.put(config, "User", user), else: config
       end)
 
+    start_opts = [json: %{"Detach" => false, "Tty" => false}, raw: true]
+
+    start_opts =
+      if timeout, do: Keyword.put(start_opts, :receive_timeout, timeout), else: start_opts
+
     with {:ok, %{status: 201, body: %{"Id" => exec_id}}} <-
            docker_req(:post, "/containers/#{container_id}/exec", json: exec_config),
          {:ok, %{status: 200, body: raw_output}} <-
-           docker_req(:post, "/exec/#{exec_id}/start",
-             json: %{"Detach" => false, "Tty" => false},
-             raw: true
-           ),
+           docker_req(:post, "/exec/#{exec_id}/start", start_opts),
          {:ok, %{status: 200, body: %{"ExitCode" => exit_code}}} <-
            docker_req(:get, "/exec/#{exec_id}/json") do
       output = demux_docker_stream(raw_output)
