@@ -95,12 +95,17 @@ defmodule Autoforge.Projects.Tailscale do
   end
 
   @doc """
-  Stops and removes the Tailscale sidecar container and its volume.
+  Stops and removes the Tailscale sidecar container, its volume,
+  and the device from the tailnet.
   """
   def remove_sidecar(project) do
     if project.tailscale_container_id do
       Docker.stop_container(project.tailscale_container_id, timeout: 5)
       Docker.remove_container(project.tailscale_container_id, force: true)
+    end
+
+    if project.tailscale_hostname do
+      delete_tailnet_device(project.tailscale_hostname)
     end
 
     Docker.remove_volume("autoforge-ts-#{project.id}")
@@ -114,7 +119,70 @@ defmodule Autoforge.Projects.Tailscale do
     "https://#{hostname}.#{tailnet_name}"
   end
 
+  @doc """
+  Deletes a device from the tailnet by hostname.
+
+  Looks up the device via the Tailscale API and deletes it if found.
+  Failures are logged but do not propagate — this is best-effort cleanup.
+  """
+  def delete_tailnet_device(hostname) do
+    with {:ok, config} <- get_config(),
+         {:ok, access_token} <- get_oauth_token(config),
+         {:ok, device_id} <- find_device_by_hostname(access_token, hostname) do
+      case Req.delete("https://api.tailscale.com/api/v2/device/#{device_id}",
+             auth: {:bearer, access_token}
+           ) do
+        {:ok, %{status: status}} when status in [200, 204] ->
+          Logger.info("Deleted Tailscale device #{hostname} (#{device_id})")
+          :ok
+
+        {:ok, %{status: status, body: body}} ->
+          Logger.warning(
+            "Failed to delete Tailscale device #{hostname}: status=#{status} body=#{inspect(body)}"
+          )
+
+          :ok
+
+        {:error, reason} ->
+          Logger.warning("Failed to delete Tailscale device #{hostname}: #{inspect(reason)}")
+          :ok
+      end
+    else
+      :disabled ->
+        :ok
+
+      {:error, :not_found} ->
+        Logger.debug("Tailscale device #{hostname} not found in tailnet, nothing to delete")
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to look up Tailscale device #{hostname} for deletion: #{inspect(reason)}"
+        )
+
+        :ok
+    end
+  end
+
   # Private helpers
+
+  defp find_device_by_hostname(access_token, hostname) do
+    case Req.get("https://api.tailscale.com/api/v2/tailnet/-/devices",
+           auth: {:bearer, access_token}
+         ) do
+      {:ok, %{status: 200, body: %{"devices" => devices}}} ->
+        case Enum.find(devices, fn d -> d["hostname"] == hostname end) do
+          %{"nodeId" => node_id} -> {:ok, node_id}
+          _ -> {:error, :not_found}
+        end
+
+      {:ok, %{status: status, body: body}} ->
+        {:error, {:tailscale_api, status, body}}
+
+      {:error, reason} ->
+        {:error, {:tailscale_api, reason}}
+    end
+  end
 
   defp build_hostname(project) do
     slug =

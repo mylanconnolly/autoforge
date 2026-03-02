@@ -25,7 +25,7 @@ defmodule AutoforgeWeb.LiveUserAuth do
     if socket.assigns[:current_user] do
       {:cont, socket}
     else
-      {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/sign-in")}
+      {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/auth/user/auth0")}
     end
   end
 
